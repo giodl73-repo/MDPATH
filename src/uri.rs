@@ -1,6 +1,6 @@
 use crate::error::MdPathError;
 use crate::heading::normalize_heading;
-use crate::selector::{parse_selector, parse_sub_selectors, parse_type_kind};
+use crate::selector::{parse_selector, parse_sub_selectors, parse_type_kind, validate_sub_selectors};
 
 /// A parsed `md://` URI.
 ///
@@ -86,6 +86,11 @@ impl MdUri {
         // Parse the fragment (everything after #)
         let (heading_path, element_type, kind, selector, sub_selectors, query) =
             parse_fragment(fragment)?;
+
+        // Validate sub-selectors against the declared element type (Invariant I-10)
+        if let Some(ref et) = element_type {
+            validate_sub_selectors(et, &sub_selectors)?;
+        }
 
         Ok(MdUri {
             path: path.to_string(),

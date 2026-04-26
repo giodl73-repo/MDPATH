@@ -24,13 +24,14 @@ pub fn parse_type_kind(s: &str) -> Result<(ElementType, Option<String>), MdPathE
     };
 
     let element_type = match type_str {
-        "figure" => ElementType::Figure,
-        "table" => ElementType::Table,
-        "chart" => ElementType::Chart,
-        "text" => ElementType::Text,
+        "figure"  => ElementType::Figure,
+        "table"   => ElementType::Table,
+        "chart"   => ElementType::Chart,
+        "text"    => ElementType::Text,
         "heading" => ElementType::Heading,
+        "section" => ElementType::Section,
         other => return Err(MdPathError::ParseError(
-            format!("unknown element type {:?} — use figure, table, chart, text, or heading", other)
+            format!("unknown element type {:?} — use figure, table, chart, text, heading, or section", other)
         )),
     };
 

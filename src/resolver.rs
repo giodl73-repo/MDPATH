@@ -110,8 +110,10 @@ pub fn resolve_in_doc(uri: &MdUri, doc: &ParsedDocument, file: &Path) -> Result<
 fn element_matches_type(elem: &ParsedElement, t: &ElementType) -> bool {
     match (elem, t) {
         (ParsedElement::CodeBlock(_), ElementType::Figure) => true,
-        (ParsedElement::Table(_), ElementType::Table) => true,
-        (ParsedElement::Paragraph(_), ElementType::Text) => true,
+        (ParsedElement::CodeBlock(_), ElementType::Chart)  => true, // charts are code blocks too
+        (ParsedElement::Table(_),     ElementType::Table)  => true,
+        (ParsedElement::Paragraph(_), ElementType::Text)   => true,
+        (ParsedElement::Paragraph(_), ElementType::Heading) => true, // headings resolve to a paragraph-like element
         _ => false,
     }
 }

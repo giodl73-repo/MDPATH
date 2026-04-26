@@ -73,7 +73,6 @@ pub fn parse_document(content: &str) -> ParsedDocument {
                 let h_idx = headings.len().saturating_sub(1);
                 flush_para(&mut elements, &mut para_lines, &mut para_start, &mut in_para, h_idx, line_no.saturating_sub(1));
                 if in_table {
-                    let rows: Vec<&str> = table_rows.drain(..).collect();
                     flush_table(&mut elements, &mut table_rows, table_start, h_idx, line_no.saturating_sub(1));
                     in_table = false;
                 }
@@ -127,11 +126,13 @@ pub fn parse_document(content: &str) -> ParsedDocument {
             // End of table
             if in_table && !is_table_row {
                 let h_idx = headings.len().saturating_sub(1);
-                let rows: Vec<&str> = table_rows.drain(..).collect();
-                if rows.len() >= 2 {
+                if table_rows.len() >= 2 {
+                    let rows: Vec<&str> = table_rows.drain(..).collect();
                     if let Some(parsed) = try_parse_table(&rows, table_start, line_no.saturating_sub(1), h_idx) {
                         elements.push(ParsedElement::Table(parsed));
                     }
+                } else {
+                    table_rows.clear();
                 }
                 in_table = false;
             }
@@ -188,6 +189,21 @@ pub fn parse_document(content: &str) -> ParsedDocument {
 
     // Flush trailing state
     let h_idx = headings.len().saturating_sub(1);
+
+    // Flush unclosed fence at end-of-file as a code block
+    if in_fence && !fence_content.is_empty() {
+        let content_refs: Vec<&str> = fence_content.iter().map(|s| s.as_str()).collect();
+        let label = detect_inline_label(&fence_info, &content_refs);
+        elements.push(ParsedElement::CodeBlock(CodeBlock {
+            fence_info,
+            content: fence_content,
+            line_start: fence_start,
+            line_end: n,
+            label,
+            heading_idx: h_idx,
+        }));
+    }
+
     if in_para && !para_lines.is_empty() {
         elements.push(ParsedElement::Paragraph(Paragraph {
             lines: para_lines,
