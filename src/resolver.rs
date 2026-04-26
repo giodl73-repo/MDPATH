@@ -1,4 +1,10 @@
-use crate::{error::MdPathError, uri::MdUri};
+use crate::{
+    document::{ParsedDocument, ParsedElement, CodeBlock, ParsedTable, Paragraph},
+    error::MdPathError,
+    label::label_matches,
+    parser::parse_document,
+    uri::{ElementType, MdUri, Selector},
+};
 use std::path::Path;
 
 /// A resolved markdown element.
@@ -6,8 +12,8 @@ use std::path::Path;
 pub struct ResolvedElement {
     pub uri: String,
     pub file: std::path::PathBuf,
-    pub line_start: usize,  // 1-based
-    pub line_end: usize,    // 1-based
+    pub line_start: usize,
+    pub line_end: usize,
     pub content: String,
     pub label: Option<String>,
     pub section_heading: Option<String>,
@@ -15,20 +21,196 @@ pub struct ResolvedElement {
     pub kind: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ElementType { Figure, Table, Chart, Text, Heading, Section }
-
-/// Resolve a single `md://` URI.
+/// Resolve a single `md://` URI against a root directory.
 ///
-/// For multiple URIs in the same file, use [`BatchResolver`] instead —
-/// it reads the file once and resolves all URIs from the cached parse tree.
+/// For multiple URIs in the same file, prefer [`BatchResolver`].
 pub fn resolve(uri: &MdUri, root: &Path) -> Result<ResolvedElement, MdPathError> {
     let file_path = root.join(&uri.path);
-    if !file_path.exists() {
-        return Err(MdPathError::FileNotFound(uri.path.clone()));
+    let content = std::fs::read_to_string(&file_path)
+        .map_err(|e| MdPathError::Io(uri.path.clone(), e))?;
+    let doc = parse_document(&content);
+    resolve_in_doc(uri, &doc, &file_path)
+}
+
+/// Resolve an `md://` URI against an already-parsed document.
+pub fn resolve_in_doc(uri: &MdUri, doc: &ParsedDocument, file: &Path) -> Result<ResolvedElement, MdPathError> {
+    // Step 1: Walk the heading path to find the target section
+    let section_idx = if uri.heading_path.is_empty() {
+        None // whole-file scope
+    } else {
+        let mut parent: Option<usize> = None;
+        for segment in &uri.heading_path {
+            let matches = doc.find_heading(segment, parent);
+            match matches.len() {
+                0 => return Err(MdPathError::SectionNotFound(segment.clone())),
+                1 => parent = Some(matches[0]),
+                _ => return Err(MdPathError::SectionAmbiguous(segment.clone())),
+            }
+        }
+        parent
+    };
+
+    let section_heading = section_idx.map(|i| doc.headings[i].text.clone());
+
+    // Step 2: If no type/selector, return the section itself
+    if uri.element_type.is_none() && matches!(uri.selector, Selector::None) {
+        if let Some(idx) = section_idx {
+            let h = &doc.headings[idx];
+            return Ok(ResolvedElement {
+                uri: uri.path.clone(),
+                file: file.to_path_buf(),
+                line_start: h.line,
+                line_end: h.line,
+                content: format!("{} {}", "#".repeat(h.level), h.text),
+                label: Some(h.text.clone()),
+                section_heading,
+                element_type: ElementType::Section,
+                kind: None,
+            });
+        }
     }
-    // Full implementation pending — see design/SPEC.md
-    Err(MdPathError::ParseError("resolver not yet implemented".into()))
+
+    // Step 3: Collect elements of the target type within the section
+    let target_type = uri.element_type.as_ref().unwrap_or(&ElementType::Figure);
+
+    let candidates: Vec<&ParsedElement> = if let Some(idx) = section_idx {
+        doc.elements_in_section(idx)
+    } else {
+        doc.elements.iter().collect()
+    };
+
+    let typed: Vec<&ParsedElement> = candidates.iter()
+        .filter(|e| element_matches_type(e, target_type))
+        .copied()
+        .collect();
+
+    // Step 4: Apply selector
+    let selected = match &uri.selector {
+        Selector::None | Selector::Index(0) if typed.len() == 1 => typed[0],
+        Selector::Index(n) => {
+            typed.get(*n)
+                .ok_or(MdPathError::ElementNotFound(*n, typed.len()))?
+        }
+        Selector::Named(label) => {
+            // Exact → starts-with → substring, with ambiguity detection
+            find_by_label(&typed, label)?
+        }
+        Selector::None => {
+            typed.first().ok_or(MdPathError::ElementNotFound(0, 0))?
+        }
+    };
+
+    element_to_resolved(selected, uri, file, section_heading)
+}
+
+/// Returns true if a parsed element matches the requested type.
+fn element_matches_type(elem: &ParsedElement, t: &ElementType) -> bool {
+    match (elem, t) {
+        (ParsedElement::CodeBlock(_), ElementType::Figure) => true,
+        (ParsedElement::Table(_), ElementType::Table) => true,
+        (ParsedElement::Paragraph(_), ElementType::Text) => true,
+        _ => false,
+    }
+}
+
+/// Find an element by label using exact → starts-with → substring hierarchy.
+fn find_by_label<'a>(candidates: &[&'a ParsedElement], selector: &str) -> Result<&'a ParsedElement, MdPathError> {
+    let labeled: Vec<_> = candidates.iter()
+        .filter_map(|e| get_label(e).map(|l| (*e, l)))
+        .collect();
+
+    // Phase 1: exact matches
+    let exact: Vec<_> = labeled.iter()
+        .filter(|(_, l)| {
+            let (matches, is_exact) = label_matches(selector, l);
+            matches && is_exact
+        })
+        .collect();
+    if exact.len() == 1 { return Ok(exact[0].0); }
+    if exact.len() > 1 { return Err(MdPathError::LabelAmbiguous(selector.to_string(), exact.len())); }
+
+    // Phase 2: starts-with
+    let starts: Vec<_> = labeled.iter()
+        .filter(|(_, l)| {
+            let norm_sel = crate::label::normalize_label(selector);
+            let norm_l = crate::label::normalize_label(l);
+            !norm_l.is_empty() && norm_l.starts_with(&norm_sel) && norm_l != norm_sel
+        })
+        .collect();
+    if starts.len() == 1 { return Ok(starts[0].0); }
+    if starts.len() > 1 { return Err(MdPathError::LabelAmbiguous(selector.to_string(), starts.len())); }
+
+    // Phase 3: substring
+    let subs: Vec<_> = labeled.iter()
+        .filter(|(_, l)| {
+            let norm_sel = crate::label::normalize_label(selector);
+            let norm_l = crate::label::normalize_label(l);
+            norm_l.contains(&norm_sel)
+        })
+        .collect();
+    if subs.len() == 1 { return Ok(subs[0].0); }
+    if subs.len() > 1 { return Err(MdPathError::LabelAmbiguous(selector.to_string(), subs.len())); }
+
+    Err(MdPathError::LabelNotFound(selector.to_string()))
+}
+
+fn get_label(elem: &ParsedElement) -> Option<String> {
+    match elem {
+        ParsedElement::CodeBlock(b) => b.label.clone(),
+        ParsedElement::Table(t) => t.headers.first().map(|h| h.trim().to_string()),
+        ParsedElement::Paragraph(_) => None,
+    }
+}
+
+fn element_to_resolved(
+    elem: &ParsedElement,
+    uri: &MdUri,
+    file: &Path,
+    section_heading: Option<String>,
+) -> Result<ResolvedElement, MdPathError> {
+    let kind = uri.kind.clone();
+    match elem {
+        ParsedElement::CodeBlock(b) => Ok(ResolvedElement {
+            uri: uri.path.clone(),
+            file: file.to_path_buf(),
+            line_start: b.line_start,
+            line_end: b.line_end,
+            content: b.content.join("\n"),
+            label: b.label.clone(),
+            section_heading,
+            element_type: ElementType::Figure,
+            kind,
+        }),
+        ParsedElement::Table(t) => Ok(ResolvedElement {
+            uri: uri.path.clone(),
+            file: file.to_path_buf(),
+            line_start: t.line_start,
+            line_end: t.line_end,
+            content: format_table(t),
+            label: t.headers.first().map(|h| h.trim().to_string()),
+            section_heading,
+            element_type: ElementType::Table,
+            kind,
+        }),
+        ParsedElement::Paragraph(p) => Ok(ResolvedElement {
+            uri: uri.path.clone(),
+            file: file.to_path_buf(),
+            line_start: p.line_start,
+            line_end: p.line_end,
+            content: p.lines.join("\n"),
+            label: None,
+            section_heading,
+            element_type: ElementType::Text,
+            kind,
+        }),
+    }
+}
+
+fn format_table(t: &ParsedTable) -> String {
+    let mut rows = vec![t.headers.join(" | ")];
+    rows.push(t.separator.join(" | "));
+    for row in &t.rows { rows.push(row.join(" | ")); }
+    rows.join("\n")
 }
 
 /// Efficiently resolve multiple URIs in the same file without re-reading it.
@@ -43,28 +225,34 @@ pub fn resolve(uri: &MdUri, root: &Path) -> Result<ResolvedElement, MdPathError>
 ///
 /// let root = Path::new("/repo");
 /// let mut batch = BatchResolver::new(root, "computing/01-PACKAGE.md").unwrap();
-/// let fig = batch.resolve("md://computing/01-PACKAGE.md#the-big-picture:0").unwrap();
-/// let tbl = batch.resolve("md://computing/01-PACKAGE.md#layer-1:table:0").unwrap();
-/// // File read exactly once — both resolved from the same parse tree.
+/// let fig = batch.resolve_uri("md://computing/01-PACKAGE.md#the-big-picture:0").unwrap();
 /// ```
 pub struct BatchResolver {
     root: std::path::PathBuf,
-    #[allow(dead_code)]
     file_path: std::path::PathBuf,
-    // document: ParsedDocument  — added during implementation
+    doc: ParsedDocument,
 }
 
 impl BatchResolver {
     pub fn new(root: &Path, relative_path: &str) -> Result<Self, MdPathError> {
         let file_path = root.join(relative_path);
-        if !file_path.exists() {
-            return Err(MdPathError::FileNotFound(relative_path.to_string()));
-        }
-        Ok(BatchResolver { root: root.to_path_buf(), file_path })
+        let content = std::fs::read_to_string(&file_path)
+            .map_err(|e| MdPathError::Io(relative_path.to_string(), e))?;
+        let doc = parse_document(&content);
+        Ok(BatchResolver { root: root.to_path_buf(), file_path, doc })
     }
 
-    pub fn resolve(&mut self, uri: &str) -> Result<ResolvedElement, MdPathError> {
+    pub fn resolve_uri(&self, uri: &str) -> Result<ResolvedElement, MdPathError> {
         let parsed = MdUri::parse(uri)?;
-        resolve(&parsed, &self.root)
+        resolve_in_doc(&parsed, &self.doc, &self.file_path)
+    }
+
+    pub fn resolve(&self, uri: &MdUri) -> Result<ResolvedElement, MdPathError> {
+        resolve_in_doc(uri, &self.doc, &self.file_path)
+    }
+
+    /// Number of headings detected in the document.
+    pub fn heading_count(&self) -> usize {
+        self.doc.headings.iter().filter(|h| h.level > 0).count()
     }
 }

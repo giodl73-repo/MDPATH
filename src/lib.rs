@@ -22,16 +22,19 @@
 //!
 //! See `design/SPEC.md` for the full specification.
 
+pub mod document;
 pub mod error;
-pub mod uri;
-pub mod resolver;
 pub mod heading;
 pub mod label;
+pub mod parser;
+pub mod resolver;
 pub mod selector;
+pub mod uri;
 
 pub use error::MdPathError;
 pub use uri::MdUri;
-pub use resolver::{ResolvedElement, ElementType};
+pub use resolver::ResolvedElement;
+pub use uri::ElementType;
 
 /// Parse an `md://` URI from a string.
 pub fn parse(uri: &str) -> Result<MdUri, MdPathError> {
