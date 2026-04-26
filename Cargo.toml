@@ -1,0 +1,20 @@
+[package]
+name = "mdpath"
+version = "0.1.0"
+edition = "2021"
+description = "The md:// URI scheme — stable, named addressing for elements in markdown documents"
+license = "MIT"
+repository = "https://github.com/giodl73-repo/MDPATH"
+keywords = ["markdown", "uri", "addressing", "figures", "documentation"]
+categories = ["parser-implementations", "text-processing"]
+
+[lib]
+name = "mdpath"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = "2"
+percent-encoding = "2"
+
+[dev-dependencies]
+pretty_assertions = "1"
