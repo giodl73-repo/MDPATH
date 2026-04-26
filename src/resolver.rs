@@ -1,8 +1,10 @@
 use crate::{
     document::{ParsedDocument, ParsedElement, CodeBlock, ParsedTable, Paragraph},
     error::MdPathError,
+    kind::{detect_figure_kind, figure_matches_kind},
     label::label_matches,
     parser::parse_document,
+    subselect::{apply_table_subselectors, apply_figure_subselectors, apply_table_query},
     uri::{ElementType, MdUri, Selector},
 };
 use std::path::Path;
@@ -79,8 +81,9 @@ pub fn resolve_in_doc(uri: &MdUri, doc: &ParsedDocument, file: &Path) -> Result<
         doc.elements.iter().collect()
     };
 
+    let kind_filter = uri.kind.as_deref();
     let typed: Vec<&ParsedElement> = candidates.iter()
-        .filter(|e| element_matches_type(e, target_type))
+        .filter(|e| element_matches_type(e, target_type) && element_matches_kind(e, kind_filter))
         .copied()
         .collect();
 
@@ -168,32 +171,61 @@ fn element_to_resolved(
     file: &Path,
     section_heading: Option<String>,
 ) -> Result<ResolvedElement, MdPathError> {
-    let kind = uri.kind.clone();
+    let detected_kind = match elem {
+        ParsedElement::CodeBlock(b) => {
+            let refs: Vec<&str> = b.content.iter().map(|s| s.as_str()).collect();
+            uri.kind.clone().or_else(|| detect_figure_kind(&refs).map(|k| k.to_string()))
+        }
+        _ => uri.kind.clone(),
+    };
+
     match elem {
-        ParsedElement::CodeBlock(b) => Ok(ResolvedElement {
-            uri: uri.path.clone(),
-            file: file.to_path_buf(),
-            line_start: b.line_start,
-            line_end: b.line_end,
-            content: b.content.join("\n"),
-            label: b.label.clone(),
-            section_heading,
-            element_type: ElementType::Figure,
-            kind,
-        }),
-        ParsedElement::Table(t) => Ok(ResolvedElement {
-            uri: uri.path.clone(),
-            file: file.to_path_buf(),
-            line_start: t.line_start,
-            line_end: t.line_end,
-            content: format_table(t),
-            label: t.headers.first().map(|h| h.trim().to_string()),
-            section_heading,
-            element_type: ElementType::Table,
-            kind,
-        }),
+        ParsedElement::CodeBlock(b) => {
+            let content = if uri.sub_selectors.is_empty() {
+                b.content.join("\n")
+            } else {
+                apply_figure_subselectors(b, &uri.sub_selectors)?
+            };
+            Ok(ResolvedElement {
+                uri: uri.to_uri_string(),
+                file: file.to_path_buf(),
+                line_start: b.line_start,
+                line_end: b.line_end,
+                content,
+                label: b.label.clone(),
+                section_heading,
+                element_type: ElementType::Figure,
+                kind: detected_kind,
+            })
+        }
+        ParsedElement::Table(t) => {
+            let content = if !uri.sub_selectors.is_empty() {
+                apply_table_subselectors(t, &uri.sub_selectors)?.content
+            } else if let Some(q) = &uri.query {
+                apply_table_query(
+                    t,
+                    q.filter.as_deref(),
+                    q.select.as_deref(),
+                    q.top,
+                    q.skip,
+                )
+            } else {
+                format_table(t)
+            };
+            Ok(ResolvedElement {
+                uri: uri.to_uri_string(),
+                file: file.to_path_buf(),
+                line_start: t.line_start,
+                line_end: t.line_end,
+                content,
+                label: t.headers.first().map(|h| h.trim().to_string()),
+                section_heading,
+                element_type: ElementType::Table,
+                kind: detected_kind,
+            })
+        }
         ParsedElement::Paragraph(p) => Ok(ResolvedElement {
-            uri: uri.path.clone(),
+            uri: uri.to_uri_string(),
             file: file.to_path_buf(),
             line_start: p.line_start,
             line_end: p.line_end,
@@ -201,16 +233,34 @@ fn element_to_resolved(
             label: None,
             section_heading,
             element_type: ElementType::Text,
-            kind,
+            kind: detected_kind,
         }),
     }
 }
 
 fn format_table(t: &ParsedTable) -> String {
-    let mut rows = vec![t.headers.join(" | ")];
-    rows.push(t.separator.join(" | "));
-    for row in &t.rows { rows.push(row.join(" | ")); }
+    let mut rows = vec![t.headers.iter().map(|h| h.trim()).collect::<Vec<_>>().join(" | ")];
+    rows.push(t.separator.iter().map(|s| s.trim()).collect::<Vec<_>>().join(" | "));
+    for row in &t.rows { rows.push(row.iter().map(|c| c.trim()).collect::<Vec<_>>().join(" | ")); }
     rows.join("\n")
+}
+
+/// Returns true if an element matches the requested kind (or no kind filter).
+fn element_matches_kind(elem: &ParsedElement, kind: Option<&str>) -> bool {
+    match (elem, kind) {
+        (_, None) => true,
+        (ParsedElement::CodeBlock(b), Some(k)) => {
+            let refs: Vec<&str> = b.content.iter().map(|s| s.as_str()).collect();
+            figure_matches_kind(&refs, Some(k))
+        }
+        (ParsedElement::Table(_), Some(k)) => {
+            // Table kinds: key-value, comparison, reference, decision
+            // For now: any table matches any table kind (kind filtering is advisory)
+            let _ = k;
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Efficiently resolve multiple URIs in the same file without re-reading it.

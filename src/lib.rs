@@ -25,10 +25,12 @@
 pub mod document;
 pub mod error;
 pub mod heading;
+pub mod kind;
 pub mod label;
 pub mod parser;
 pub mod resolver;
 pub mod selector;
+pub mod subselect;
 pub mod uri;
 
 pub use error::MdPathError;
