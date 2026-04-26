@@ -1,6 +1,6 @@
 [package]
 name = "mdpath"
-version = "0.1.0"
+version = "0.5.0"
 edition = "2021"
 description = "The md:// URI scheme — stable, named addressing for elements in markdown documents"
 license = "MIT"
