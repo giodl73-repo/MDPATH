@@ -27,7 +27,18 @@ pub struct MdUri {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ElementType { Figure, Table, Chart, Text, Heading, Section }
+pub enum ElementType {
+    Figure,      // ASCII art diagram (visual structure)
+    Table,       // Markdown pipe table
+    Chart,       // ASCII chart (bar, line, etc.)
+    Math,        // Math expression (LaTeX or rendered)
+    Tree,        // Tree/hierarchy diagram
+    Slide,       // Slide or presentation block
+    Dashboard,   // Dashboard canvas block
+    Text,        // Prose, list, or code block
+    Heading,     // Heading line
+    Section,     // Heading + content scope
+}
 
 /// Strings over numbers — named selectors always preferred.
 #[derive(Debug, Clone, PartialEq)]
@@ -116,12 +127,16 @@ impl MdUri {
             None => String::new(),
             Some(t) => {
                 let base = match t {
-                    ElementType::Figure => "figure",
-                    ElementType::Table => "table",
-                    ElementType::Chart => "chart",
-                    ElementType::Text => "text",
-                    ElementType::Heading => "heading",
-                    ElementType::Section => "section",
+                    ElementType::Figure    => "figure",
+                    ElementType::Table     => "table",
+                    ElementType::Chart     => "chart",
+                    ElementType::Math      => "math",
+                    ElementType::Tree      => "tree",
+                    ElementType::Slide     => "slide",
+                    ElementType::Dashboard => "dashboard",
+                    ElementType::Text      => "text",
+                    ElementType::Heading   => "heading",
+                    ElementType::Section   => "section",
                 };
                 match &self.kind {
                     None => base.to_string(),

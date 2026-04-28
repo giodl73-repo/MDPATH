@@ -1,7 +1,7 @@
 use crate::{
+    classify::{Classifier, DefaultClassifier},
     document::{ParsedDocument, ParsedElement, CodeBlock, ParsedTable, Paragraph},
     error::MdPathError,
-    kind::{detect_figure_kind, figure_matches_kind},
     label::label_matches,
     parser::parse_document,
     subselect::{apply_table_subselectors, apply_figure_subselectors, apply_table_query},
@@ -23,19 +23,33 @@ pub struct ResolvedElement {
     pub kind: Option<String>,
 }
 
-/// Resolve a single `md://` URI against a root directory.
+/// Resolve a single `md://` URI against a root directory using the default classifier.
 ///
 /// For multiple URIs in the same file, prefer [`BatchResolver`].
+/// To use a custom classifier, use [`resolve_with_classifier`].
 pub fn resolve(uri: &MdUri, root: &Path) -> Result<ResolvedElement, MdPathError> {
+    resolve_with_classifier(uri, root, &DefaultClassifier)
+}
+
+/// Resolve a single `md://` URI with a custom classifier.
+///
+/// The classifier determines how fenced code blocks are mapped to [`ElementType`].
+/// Use this when you generate content that mdpath should recognize beyond its defaults.
+pub fn resolve_with_classifier(uri: &MdUri, root: &Path, classifier: &dyn Classifier) -> Result<ResolvedElement, MdPathError> {
     let file_path = root.join(&uri.path);
     let content = std::fs::read_to_string(&file_path)
         .map_err(|e| MdPathError::Io(uri.path.clone(), e))?;
     let doc = parse_document(&content);
-    resolve_in_doc(uri, &doc, &file_path)
+    resolve_in_doc_with_classifier(uri, &doc, &file_path, classifier)
 }
 
-/// Resolve an `md://` URI against an already-parsed document.
+/// Resolve an `md://` URI against an already-parsed document using the default classifier.
 pub fn resolve_in_doc(uri: &MdUri, doc: &ParsedDocument, file: &Path) -> Result<ResolvedElement, MdPathError> {
+    resolve_in_doc_with_classifier(uri, doc, file, &DefaultClassifier)
+}
+
+/// Resolve an `md://` URI against an already-parsed document with a custom classifier.
+pub fn resolve_in_doc_with_classifier(uri: &MdUri, doc: &ParsedDocument, file: &Path, classifier: &dyn Classifier) -> Result<ResolvedElement, MdPathError> {
     // Step 1: Walk the heading path to find the target section
     let section_idx = if uri.heading_path.is_empty() {
         None // whole-file scope
@@ -83,7 +97,7 @@ pub fn resolve_in_doc(uri: &MdUri, doc: &ParsedDocument, file: &Path) -> Result<
 
     let kind_filter = uri.kind.as_deref();
     let typed: Vec<&ParsedElement> = candidates.iter()
-        .filter(|e| element_matches_type(e, target_type) && element_matches_kind(e, kind_filter))
+        .filter(|e| element_matches_type(e, target_type, classifier) && element_matches_kind(e, kind_filter, classifier))
         .copied()
         .collect();
 
@@ -103,18 +117,23 @@ pub fn resolve_in_doc(uri: &MdUri, doc: &ParsedDocument, file: &Path) -> Result<
         }
     };
 
-    element_to_resolved(selected, uri, file, section_heading)
+    element_to_resolved(selected, uri, file, section_heading, classifier)
 }
 
 /// Returns true if a parsed element matches the requested type.
-fn element_matches_type(elem: &ParsedElement, t: &ElementType) -> bool {
-    match (elem, t) {
-        (ParsedElement::CodeBlock(_), ElementType::Figure) => true,
-        (ParsedElement::CodeBlock(_), ElementType::Chart)  => true, // charts are code blocks too
-        (ParsedElement::Table(_),     ElementType::Table)  => true,
-        (ParsedElement::Paragraph(_), ElementType::Text)   => true,
-        (ParsedElement::Paragraph(_), ElementType::Heading) => true, // headings resolve to a paragraph-like element
-        _ => false,
+fn element_matches_type(elem: &ParsedElement, t: &ElementType, classifier: &dyn Classifier) -> bool {
+    match elem {
+        ParsedElement::Table(_) => matches!(t, ElementType::Table),
+        ParsedElement::Paragraph(_) => matches!(t, ElementType::Text | ElementType::Heading),
+        ParsedElement::CodeBlock(b) => {
+            let refs: Vec<&str> = b.content.iter().map(|s| s.as_str()).collect();
+            if let Some((detected, _)) = classifier.classify(&b.fence_info, &refs) {
+                detected == *t
+            } else {
+                // Unclassified code blocks match Figure, Chart, and Text (backward compat)
+                matches!(t, ElementType::Figure | ElementType::Chart | ElementType::Text)
+            }
+        }
     }
 }
 
@@ -172,17 +191,15 @@ fn element_to_resolved(
     uri: &MdUri,
     file: &Path,
     section_heading: Option<String>,
+    classifier: &dyn Classifier,
 ) -> Result<ResolvedElement, MdPathError> {
-    let detected_kind = match elem {
-        ParsedElement::CodeBlock(b) => {
-            let refs: Vec<&str> = b.content.iter().map(|s| s.as_str()).collect();
-            uri.kind.clone().or_else(|| detect_figure_kind(&refs).map(|k| k.to_string()))
-        }
-        _ => uri.kind.clone(),
-    };
-
     match elem {
         ParsedElement::CodeBlock(b) => {
+            let refs: Vec<&str> = b.content.iter().map(|s| s.as_str()).collect();
+            let (detected_type, detected_kind) = classifier.classify(&b.fence_info, &refs)
+                .unwrap_or((ElementType::Figure, None));
+            let kind = uri.kind.clone().or(detected_kind);
+
             let content = if uri.sub_selectors.is_empty() {
                 b.content.join("\n")
             } else {
@@ -196,8 +213,8 @@ fn element_to_resolved(
                 content,
                 label: b.label.clone(),
                 section_heading,
-                element_type: ElementType::Figure,
-                kind: detected_kind,
+                element_type: uri.element_type.clone().unwrap_or(detected_type),
+                kind,
             })
         }
         ParsedElement::Table(t) => {
@@ -223,7 +240,7 @@ fn element_to_resolved(
                 label: t.headers.first().map(|h| h.trim().to_string()),
                 section_heading,
                 element_type: ElementType::Table,
-                kind: detected_kind,
+                kind: uri.kind.clone(),
             })
         }
         ParsedElement::Paragraph(p) => Ok(ResolvedElement {
@@ -235,7 +252,7 @@ fn element_to_resolved(
             label: None,
             section_heading,
             element_type: ElementType::Text,
-            kind: detected_kind,
+            kind: uri.kind.clone(),
         }),
     }
 }
@@ -248,20 +265,19 @@ fn format_table(t: &ParsedTable) -> String {
 }
 
 /// Returns true if an element matches the requested kind (or no kind filter).
-fn element_matches_kind(elem: &ParsedElement, kind: Option<&str>) -> bool {
-    match (elem, kind) {
-        (_, None) => true,
-        (ParsedElement::CodeBlock(b), Some(k)) => {
+fn element_matches_kind(elem: &ParsedElement, kind: Option<&str>, classifier: &dyn Classifier) -> bool {
+    let Some(k) = kind else { return true; };
+    match elem {
+        ParsedElement::Table(_) => true, // table kind filtering is advisory
+        ParsedElement::Paragraph(_) => true,
+        ParsedElement::CodeBlock(b) => {
             let refs: Vec<&str> = b.content.iter().map(|s| s.as_str()).collect();
-            figure_matches_kind(&refs, Some(k))
+            if let Some((_, detected_kind)) = classifier.classify(&b.fence_info, &refs) {
+                detected_kind.as_deref() == Some(k)
+            } else {
+                true // no classification → don't filter out
+            }
         }
-        (ParsedElement::Table(_), Some(k)) => {
-            // Table kinds: key-value, comparison, reference, decision
-            // For now: any table matches any table kind (kind filtering is advisory)
-            let _ = k;
-            true
-        }
-        _ => false,
     }
 }
 
@@ -295,12 +311,20 @@ impl BatchResolver {
     }
 
     pub fn resolve_uri(&self, uri: &str) -> Result<ResolvedElement, MdPathError> {
+        self.resolve_uri_with_classifier(uri, &DefaultClassifier)
+    }
+
+    pub fn resolve_uri_with_classifier(&self, uri: &str, classifier: &dyn Classifier) -> Result<ResolvedElement, MdPathError> {
         let parsed = MdUri::parse(uri)?;
-        resolve_in_doc(&parsed, &self.doc, &self.file_path)
+        resolve_in_doc_with_classifier(&parsed, &self.doc, &self.file_path, classifier)
     }
 
     pub fn resolve(&self, uri: &MdUri) -> Result<ResolvedElement, MdPathError> {
-        resolve_in_doc(uri, &self.doc, &self.file_path)
+        resolve_in_doc_with_classifier(uri, &self.doc, &self.file_path, &DefaultClassifier)
+    }
+
+    pub fn resolve_with_classifier(&self, uri: &MdUri, classifier: &dyn Classifier) -> Result<ResolvedElement, MdPathError> {
+        resolve_in_doc_with_classifier(uri, &self.doc, &self.file_path, classifier)
     }
 
     /// Number of headings detected in the document.

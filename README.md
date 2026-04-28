@@ -1,178 +1,242 @@
 # mdpath
 
-The Rust library implementing the `md://` URI scheme — stable, named addressing for figures, tables, charts, text, and headings within markdown documents.
+**Stable, named addressing for every element in every markdown file.**
+
+Line numbers break. Heading text doesn't. `md://` URIs identify content by
+what it *is* — its label, type, and position in the heading hierarchy — so
+references survive edits, refactors, and file growth.
+
+```
+md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler
+    └── file ──────────┘ └── section ────┘ └── type.kind ─┘ └── named label ──┘
+```
+
+Resolve it:
+
+```rust
+use mdpath::{parse, resolve};
+
+let uri = parse("md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler")?;
+let element = resolve(&uri, Path::new("/repo"))?;
+
+println!("{}", element.content);        // the figure text
+println!("{}", element.label);          // "goroutine-scheduler"
+println!("lines {}–{}", element.line_start, element.line_end);
+```
 
 ---
 
-## What it is
+## What it addresses
 
-`mdpath` gives every important element in a markdown file a stable address that survives line number changes. Instead of "the box on line 47," you write `md://computing/01-PACKAGE.md#the-big-picture:figure.flowchart:package-layers`. That URI resolves to the same element even after the file grows or shrinks around it.
+Ten element types — anything meaningful in a markdown file:
 
-`mdpath` is a standalone library crate. It has no dependency on `proof` — any tool (editor, CI pipeline, agent) can implement a resolver against the same spec. `proof` is the reference implementation.
+| Type | What it is | Example URI |
+|------|-----------|-------------|
+| `figure` | ASCII art diagram in a fenced block | `:figure.flowchart:arch` |
+| `table` | Markdown pipe table | `:table:0[row=Goroutine,col=Stack Size]` |
+| `chart` | ASCII bar/line chart | `:chart.bar:0[bar=Option A]` |
+| `math` | LaTeX or rendered math expression | `:math:pythagorean` |
+| `tree` | Tree/hierarchy diagram | `:tree:org` |
+| `slide` | Slide block | `:slide:introduction` |
+| `dashboard` | Dashboard canvas region | `:dashboard:header` |
+| `text` | Prose paragraph or list | `:text:0` |
+| `heading` | A heading line | `:heading:the-big-picture` |
+| `section` | Heading + all content below it | `#concurrency-model` |
 
 ---
 
-## Status
-
-Fully implemented. 56+ passing tests covering URI parsing, section navigation, element detection, label matching, sub-selectors, query parameters, and round-trip stability.
-
----
-
-## URI Grammar
+## The URI grammar
 
 ```
 md://path[#heading-path][:[type[.kind]:]selector][sub-selector][?query]
 ```
 
-### Components
-
-| Component | Description | Example |
-|-----------|-------------|---------|
-| `path` | File path relative to proof root, must end in `.md` | `languages/10-GO.md` |
-| `#heading-path` | Slash-separated normalized heading segments | `#concurrency-model/goroutines` |
-| `type` | Element type | `figure`, `table`, `chart`, `text`, `heading` |
-| `kind` | Type qualifier | `figure.flowchart`, `table.key-value`, `chart.bar` |
-| `selector` | Which element within the type collection | `:goroutine-scheduler` (named) or `:0` (index) |
-| `[sub-selector]` | Row, column, or box within the element | `[row=Binding,col=Value]`, `[box=PREPROCESSOR]` |
-| `?query` | OData-style filter and projection | `?select=Axis,Value&filter=Axis eq Binding` |
-
-**Strings over numbers** — named selectors are always preferred. Numeric indices are the fallback when no label exists.
-
-### Examples
+Every component is optional after the path. Compose only what you need:
 
 ```
-md://computing/01-PACKAGE.md
-md://computing/01-PACKAGE.md#the-big-picture
-md://computing/01-PACKAGE.md#the-big-picture:0
-md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler
-md://languages/05-CSHARP.md#type-system-snapshot:table.key-value:0
-md://languages/05-CSHARP.md#type-system-snapshot:table.key-value:0[row=Binding,col=Value]
-md://sections/computing-software.md#directories:table:0?select=Directory,Description
+md://doc.md                                         whole file
+md://doc.md#section                                 one section
+md://doc.md#section:figure:arch                     named figure
+md://doc.md#section:table:0[row=X,col=Y]            table cell
+md://doc.md#section:figure:arch[box=SCHEDULER]      box inside figure
+md://doc.md:table:metrics?select=name,value         projected columns
 ```
 
-Heading slugs are normalized: spaces become hyphens, ASCII-lowercased. `#The Big Picture` and `#the-big-picture` address the same heading.
+**Names over numbers.** Numeric indexes break when elements are reordered.
+Named selectors use a three-phase cascade — exact → prefix → substring — so
+`:figure:goroutine` matches `goroutine-scheduler` without specifying the full label.
 
 ---
 
-## Quick Start
+## Label matching
 
-```rust
-use mdpath::{parse, resolve};
-use std::path::Path;
-
-// Parse a URI
-let uri = parse("md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler")
-    .unwrap();
-
-// Resolve against a repo root
-let element = resolve(&uri, Path::new("/path/to/repo")).unwrap();
-
-println!("label:   {:?}", element.label);
-println!("lines:   {}–{}", element.line_start, element.line_end);
-println!("content:\n{}", element.content);
 ```
+:figure:goroutine-scheduler    exact match
+:figure:goroutine              prefix match (matches goroutine-scheduler)
+:figure:scheduler              substring match
+:figure:0                      numeric fallback (breaks on reorder)
+```
+
+Ambiguous matches (two elements match at the same priority) return
+`LabelAmbiguous` instead of guessing.
 
 ---
 
-## BatchResolver
-
-For resolving multiple URIs in the same file — `proof`'s primary use case — use `BatchResolver` to read the file once and resolve all URIs from the cached parse tree:
+## BatchResolver — one parse, many resolves
 
 ```rust
 use mdpath::resolver::BatchResolver;
-use std::path::Path;
 
-let root = Path::new("/path/to/repo");
-let mut batch = BatchResolver::new(root, "languages/10-GO.md").unwrap();
+let resolver = BatchResolver::new(root, "languages/10-GO.md")?;
 
-// File is read and parsed exactly once.
-let fig = batch.resolve_uri("md://languages/10-GO.md#concurrency-model:0").unwrap();
-let tbl = batch.resolve_uri("md://languages/10-GO.md#type-system-snapshot:table:0").unwrap();
-
-println!("figure at lines {}–{}", fig.line_start, fig.line_end);
-println!("table at lines {}–{}", tbl.line_start, tbl.line_end);
+// File is read and parsed exactly once
+let fig = resolver.resolve_uri("md://languages/10-GO.md:figure:goroutine-scheduler")?;
+let tbl = resolver.resolve_uri("md://languages/10-GO.md:table:0[row=Goroutine]")?;
+let sec = resolver.resolve_uri("md://languages/10-GO.md#concurrency-model")?;
 ```
 
 ---
 
-## Resolved Element Fields
+## Classifier extension
+
+Tools that generate fenced blocks can teach mdpath how to classify them:
+
+```rust
+use mdpath::{parse, resolve_with_classifier};
+use mdpath::classify::{Classifier, DefaultClassifier};
+use mdpath::uri::ElementType;
+
+struct MyClassifier;
+
+impl Classifier for MyClassifier {
+    fn classify(&self, fence_info: &str, content: &[&str])
+        -> Option<(ElementType, Option<String>)>
+    {
+        match fence_info {
+            "my:math"  => Some((ElementType::Math, None)),
+            "my:tree"  => Some((ElementType::Tree, None)),
+            "my:slide" => Some((ElementType::Slide, None)),
+            _          => DefaultClassifier.classify(fence_info, content),
+        }
+    }
+}
+
+let element = resolve_with_classifier(&uri, root, &MyClassifier)?;
+```
+
+`DefaultClassifier` handles: `math`/`latex`/`tex` → Math, `mermaid` → Figure,
+bar characters → Chart, box-drawing → Figure, `└──` branches → Tree.
+
+`ChainClassifier` composes multiple classifiers in priority order.
+
+---
+
+## Resolved element
 
 ```rust
 pub struct ResolvedElement {
-    pub uri: String,                    // canonical URI string
-    pub file: std::path::PathBuf,       // absolute path to source file
-    pub line_start: usize,              // 1-based, inclusive
-    pub line_end: usize,                // 1-based, inclusive
-    pub content: String,                // element content (fence delimiters stripped for figures)
-    pub label: Option<String>,          // detected label text, if any
-    pub section_heading: Option<String>,// heading text of the enclosing section
-    pub element_type: ElementType,      // Figure | Table | Chart | Text | Heading | Section
-    pub kind: Option<String>,           // detected or declared kind (e.g. "flowchart", "key-value")
+    pub uri: String,               // canonical URI
+    pub file: PathBuf,             // absolute path to source file
+    pub line_start: usize,         // 1-based
+    pub line_end: usize,           // 1-based, inclusive
+    pub content: String,           // element content (fence delimiters stripped)
+    pub label: Option<String>,     // detected label
+    pub section_heading: Option<String>,
+    pub element_type: ElementType, // Figure | Table | Math | Tree | ...
+    pub kind: Option<String>,      // "flowchart" | "key-value" | "bar" | ...
 }
 ```
 
-For figures, `content` is the text inside the code fence — fence delimiter lines are never included.
+---
+
+## Sub-selectors
+
+Target content within an element:
+
+| Sub-selector | Applies to | Example |
+|-------------|-----------|---------|
+| `[row=X]` | Tables | Row where first column = X |
+| `[col=Y]` | Tables | Column with header Y |
+| `[row=X,col=Y]` | Tables | Single cell |
+| `[box=Z]` | Figures | Labeled box inside the figure |
+| `[bar=X]` | Charts | Bar with label X |
 
 ---
 
-## The `proof:figure` Marker Format
+## Query parameters
 
-Figure files are standalone `.md` files whose code blocks are marked with HTML comments immediately before each fence. The comment is hidden in rendered output but gives the following code block a stable named identity that `mdpath` can address:
+Post-resolution transformations:
 
-```markdown
-<!-- proof:figure id="goroutine-scheduler" kind="figure.flowchart" -->
 ```
-GOROUTINE SCHEDULER — M:N multiplexing
-┌─────────────────────────────────────┐
-│  OS Thread (M)                      │
-│  ┌──────┐ ┌──────┐ ┌──────┐        │
-│  │  G   │ │  G   │ │  G   │  ...   │
-│  └──────┘ └──────┘ └──────┘        │
-└─────────────────────────────────────┘
-```
+?select=name,value     return only listed columns
+?filter=status=active  filter rows by expression
+?count                 return element count instead of content
+?top=10                first N results
+?skip=5                skip first N
 ```
 
-The `id` attribute maps directly to a named selector: `md://figures/goroutine-scheduler.md#:goroutine-scheduler` addresses this figure regardless of which line it appears on.
+---
+
+## Heading normalization
+
+Heading paths normalize automatically — you write what the heading says:
+
+```
+Heading:    "The Big Picture"
+In URI:     #the-big-picture
+
+Heading:    "Concurrency Model / Goroutines"
+In URI:     #concurrency-model/goroutines
+```
+
+Rules: lowercase, spaces → dashes, punctuation stripped, consecutive dashes collapsed.
 
 ---
 
-## Label Matching
+## Error types
 
-When a named selector is used, `mdpath` resolves it through a three-phase hierarchy:
+Every failure mode is a typed variant — match on what went wrong:
 
-1. **Exact match** — label equals selector (case-insensitive, normalized)
-2. **Starts-with** — label begins with selector
-3. **Substring** — label contains selector
-
-Ambiguity (more than one match at any phase) returns an error rather than silently picking the wrong element.
-
----
-
-## Integration with proof
-
-`mdpath` is used by `proof` for:
-
-- **`proof resolve`** — resolve a URI and print element content and metadata
-- **`proof pin`** — register a figure's URI for DaVinci invariant tracking
-- **`proof compile`** — resolve every `proof:include` and `proof:layout` directive in source documents before embedding
-
-`proof` depends on `mdpath` via Cargo path dependency (`{ path = "../mdpath" }`). When published, this will become a crates.io version dependency.
+```rust
+match resolve(&uri, root) {
+    Ok(e) => use_element(e),
+    Err(MdPathError::FileNotFound { path }) =>
+        eprintln!("no file at {:?}", path),
+    Err(MdPathError::SectionAmbiguous { segment, count }) =>
+        eprintln!("{} headings match {:?} — use parent/child path", count, segment),
+    Err(MdPathError::LabelAmbiguous { label, count }) =>
+        eprintln!("{} elements match {:?} — use more specific label", count, label),
+    Err(e) => eprintln!("{}", e),
+}
+```
 
 ---
 
-## Design
+## proof integration
 
-The full URI specification, addressing rules, label detection algorithm, sub-selector semantics, and failure mode catalog are in `proof/design/`:
-
-- `proof/design/FIG-SPEC.md` — complete `md://` specification
-- `proof/design/md-path/INVARIANTS.md` — resolver properties
-- `proof/design/md-path/PITFALLS.md` — failure mode catalog
+[proof](../proof/README.md) uses mdpath for every `md://` reference it encounters —
+compile directives, fix plans, DaVinci figure pinning, error reporting. proof
+supplies `ProofClassifier` mapping `proof:math` → Math, `proof:tree` → Tree,
+`proof:slide` → Slide, `proof:region` → Dashboard.
 
 ---
 
-## GitHub
+## Guides
 
-[https://github.com/giodl73-repo/MDPATH](https://github.com/giodl73-repo/MDPATH)
+```bash
+bash scripts/build-guides.sh     # compile src/guides/ → docs/guides/
+```
+
+| Guide | |
+|-------|-|
+| [Overview](docs/guides/00-overview.md) | What mdpath is and how it works |
+| [URI Syntax](docs/guides/01-uri-syntax.md) | Complete grammar reference |
+| [Element Types](docs/guides/02-element-types.md) | All 10 types and detection |
+| [Resolution](docs/guides/03-resolution.md) | Single-URI and BatchResolver |
+| [Selectors](docs/guides/04-selectors.md) | Sub-selectors and query params |
+| [Integration](docs/guides/05-integration.md) | Using mdpath with proof |
+| [Errors](docs/guides/06-errors.md) | Error handling and pitfalls |
+| [Classifier](docs/guides/07-classifier.md) | Extending type detection |
 
 ---
 

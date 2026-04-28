@@ -1,0 +1,9 @@
+[files]
+root = true
+
+[[compile]]
+source_dir = "src/guides"
+output_dir = "docs/guides"
+
+[markdown]
+enabled = true
