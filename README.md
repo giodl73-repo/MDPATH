@@ -1,17 +1,22 @@
 # mdpath
 
-**Stable, named addressing for every element in every markdown file.**
+**A stable addressing scheme for every figure, table, heading, and diagram in your markdown corpus.**
 
-Line numbers break. Heading text doesn't. `md://` URIs identify content by
-what it *is* — its label, type, and position in the heading hierarchy — so
-references survive edits, refactors, and file growth.
+Line numbers break. File paths break. `md://` URIs don't.
+
+mdpath gives every element in every markdown file a permanent name — based on
+what it *is*, not where it sits. Rename a heading, move a figure, grow a file
+by 200 lines: every `md://` URI that pointed to it still resolves.
 
 ```
 md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler
     └── file ──────────┘ └── section ────┘ └── type.kind ─┘ └── named label ──┘
 ```
 
-Resolve it:
+It powers [proof](../proof/README.md) — a full markdown compilation toolchain
+running across a 2,700-file corpus of technical guides, presentations, and
+dashboards. Every `proof:include`, `proof:xref`, `proof:toc`, and DaVinci pin
+resolves through mdpath at compile time.
 
 ```rust
 use mdpath::{parse, resolve};
