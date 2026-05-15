@@ -2,6 +2,8 @@
 
 **A stable addressing scheme for every figure, table, heading, and diagram in your markdown corpus.**
 
+**Series:** [Tools & Infrastructure](https://github.com/giodl73-repo/giodl73-repo/blob/main/series/tools-infrastructure.md).
+
 Line numbers break. File paths break. `md://` URIs don't.
 
 mdpath gives every element in every markdown file a permanent name — based on
