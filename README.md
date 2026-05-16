@@ -4,6 +4,10 @@
 
 **Series:** [Standards & Protocols](https://github.com/giodl73-repo/giodl73-repo/blob/main/series/standards-protocols.md).
 
+**Review roles:** This repo uses
+[ROLES](https://github.com/giodl73-repo/ROLES), the `.roles` convention for
+repository-local review panels.
+
 Line numbers break. File paths break. `md://` URIs don't.
 
 mdpath gives every element in every markdown file a permanent name — based on
