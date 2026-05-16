@@ -2,7 +2,7 @@
 
 **A stable addressing scheme for every figure, table, heading, and diagram in your markdown corpus.**
 
-**Series:** [Tools & Infrastructure](https://github.com/giodl73-repo/giodl73-repo/blob/main/series/tools-infrastructure.md).
+**Series:** [Standards & Protocols](https://github.com/giodl73-repo/giodl73-repo/blob/main/series/standards-protocols.md).
 
 Line numbers break. File paths break. `md://` URIs don't.
 
