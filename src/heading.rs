@@ -57,7 +57,10 @@ mod tests {
     #[test]
     fn basic_normalization() {
         assert_eq!(normalize_heading("## The Big Picture"), "the-big-picture");
-        assert_eq!(normalize_heading("## Layer 1: OS Layer"), "layer-1-os-layer");
+        assert_eq!(
+            normalize_heading("## Layer 1: OS Layer"),
+            "layer-1-os-layer"
+        );
         assert_eq!(normalize_heading("Concurrency Model"), "concurrency-model");
     }
 
@@ -71,7 +74,10 @@ mod tests {
     #[test]
     fn slash_stripped_not_separator() {
         // Slash in heading text is stripped — it does NOT create a path segment
-        assert_eq!(normalize_heading("## Input/Output Handling"), "inputoutput-handling");
+        assert_eq!(
+            normalize_heading("## Input/Output Handling"),
+            "inputoutput-handling"
+        );
     }
 
     #[test]

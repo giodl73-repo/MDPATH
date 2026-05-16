@@ -18,11 +18,29 @@
 /// Returns true if a line contains box-drawing characters that disqualify it
 /// from being an inline label.
 pub fn has_box_chars(line: &str) -> bool {
-    line.chars().any(|c| matches!(c,
-        '┌'|'┐'|'└'|'┘'|'├'|'┤'|'┬'|'┴'|'┼'|
-        '─'|'│'|'╔'|'╗'|'╚'|'╝'|'═'|'║'|
-        '+'|'|' // ASCII box chars
-    ))
+    line.chars().any(|c| {
+        matches!(
+            c,
+            '┌' | '┐'
+                | '└'
+                | '┘'
+                | '├'
+                | '┤'
+                | '┬'
+                | '┴'
+                | '┼'
+                | '─'
+                | '│'
+                | '╔'
+                | '╗'
+                | '╚'
+                | '╝'
+                | '═'
+                | '║'
+                | '+'
+                | '|' // ASCII box chars
+        )
+    })
 }
 
 /// Returns true if a string is a pure digit sequence (reserved for numeric selectors).
@@ -43,11 +61,17 @@ pub fn detect_inline_label(fence_info: &str, lines: &[&str]) -> Option<String> {
     // Find the first non-empty line
     for line in lines {
         let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
         // Must not contain box-drawing chars
-        if has_box_chars(trimmed) { return None; }
+        if has_box_chars(trimmed) {
+            return None;
+        }
         // Must not be pure digits
-        if is_pure_digit(trimmed) { return None; }
+        if is_pure_digit(trimmed) {
+            return None;
+        }
         return Some(trimmed.to_string());
     }
     None
@@ -65,22 +89,30 @@ pub fn detect_preceding_label(lines_before: &[&str]) -> Option<String> {
         if trimmed.is_empty() {
             // If we haven't found a non-blank yet, the preceding line is blank
             // → no preceding label (blank line between text and fence breaks the link)
-            if i == 0 { return None; }
+            if i == 0 {
+                return None;
+            }
             break;
         }
         // Accept bold FIRST: **text** — must check before list-item rejection
         // since "**text**" starts with '*' but is not a list item
         if trimmed.starts_with("**") && trimmed.ends_with("**") && trimmed.len() > 4 {
-            let inner = &trimmed[2..trimmed.len()-2];
+            let inner = &trimmed[2..trimmed.len() - 2];
             if !inner.is_empty() && !is_pure_digit(inner) {
                 return Some(inner.to_string());
             }
         }
 
         // Reject headings, list items, links, code spans (non-bold)
-        if trimmed.starts_with('#') { return None; }
-        if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("1.") { return None; }
-        if trimmed.starts_with('[') || trimmed.starts_with('`') { return None; }
+        if trimmed.starts_with('#') {
+            return None;
+        }
+        if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("1.") {
+            return None;
+        }
+        if trimmed.starts_with('[') || trimmed.starts_with('`') {
+            return None;
+        }
 
         // Accept standalone text ≤ 60 chars
         if trimmed.len() <= 60 && !is_pure_digit(trimmed) {
@@ -134,8 +166,14 @@ mod tests {
 
     #[test]
     fn inline_label_detected() {
-        let lines = &["GOROUTINE SCHEDULER — M:N multiplexing", "┌──────────────────┐"];
-        assert_eq!(detect_inline_label("", lines), Some("GOROUTINE SCHEDULER — M:N multiplexing".into()));
+        let lines = &[
+            "GOROUTINE SCHEDULER — M:N multiplexing",
+            "┌──────────────────┐",
+        ];
+        assert_eq!(
+            detect_inline_label("", lines),
+            Some("GOROUTINE SCHEDULER — M:N multiplexing".into())
+        );
     }
 
     #[test]
@@ -159,7 +197,10 @@ mod tests {
     #[test]
     fn preceding_bold_label() {
         let before = ["**Architecture Overview**", "some prior text"];
-        assert_eq!(detect_preceding_label(&before), Some("Architecture Overview".into()));
+        assert_eq!(
+            detect_preceding_label(&before),
+            Some("Architecture Overview".into())
+        );
     }
 
     #[test]
@@ -176,7 +217,10 @@ mod tests {
 
     #[test]
     fn label_exact_match() {
-        let (matches, exact) = label_matches("goroutine scheduler", "GOROUTINE SCHEDULER — M:N multiplexing");
+        let (matches, exact) = label_matches(
+            "goroutine scheduler",
+            "GOROUTINE SCHEDULER — M:N multiplexing",
+        );
         assert!(matches);
         assert!(!exact); // not exact, but starts-with or contains
     }

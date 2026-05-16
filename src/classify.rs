@@ -25,7 +25,6 @@
 ///     }
 /// }
 /// ```
-
 use crate::kind::detect_figure_kind;
 use crate::uri::ElementType;
 
@@ -35,7 +34,8 @@ pub trait Classifier: Send + Sync {
     ///
     /// Return `None` when you want to delegate to the next classifier in the chain.
     /// Returning `Some(...)` overrides all further classification.
-    fn classify(&self, fence_info: &str, content: &[&str]) -> Option<(ElementType, Option<String>)>;
+    fn classify(&self, fence_info: &str, content: &[&str])
+        -> Option<(ElementType, Option<String>)>;
 }
 
 /// The default classifier — handles common markdown patterns and generic fence_info values.
@@ -47,7 +47,11 @@ pub trait Classifier: Send + Sync {
 pub struct DefaultClassifier;
 
 impl Classifier for DefaultClassifier {
-    fn classify(&self, fence_info: &str, content: &[&str]) -> Option<(ElementType, Option<String>)> {
+    fn classify(
+        &self,
+        fence_info: &str,
+        content: &[&str],
+    ) -> Option<(ElementType, Option<String>)> {
         // 1. Well-known fence_info patterns (tool-agnostic)
         let info = fence_info.trim();
         match info {
@@ -72,9 +76,15 @@ impl Classifier for DefaultClassifier {
         }
 
         // Bar chart detection (takes priority over box figures)
-        let bar_lines = content.iter().filter(|l| {
-            l.chars().filter(|c| matches!(c, '█' | '▓' | '▒' | '░')).count() >= 3
-        }).count();
+        let bar_lines = content
+            .iter()
+            .filter(|l| {
+                l.chars()
+                    .filter(|c| matches!(c, '█' | '▓' | '▒' | '░'))
+                    .count()
+                    >= 3
+            })
+            .count();
         if bar_lines >= 2 {
             return Some((ElementType::Chart, Some("bar".to_string())));
         }
@@ -84,7 +94,9 @@ impl Classifier for DefaultClassifier {
         let has_tree = content.iter().any(|l| {
             let t = l.trim();
             (t.starts_with('├') || t.starts_with('└') || t.contains(" ├") || t.contains(" └"))
-            && !t.ends_with('┘') && !t.ends_with('╝') && !t.ends_with('+')
+                && !t.ends_with('┘')
+                && !t.ends_with('╝')
+                && !t.ends_with('+')
         });
 
         if has_tree {
@@ -95,8 +107,10 @@ impl Classifier for DefaultClassifier {
         let has_box = content.iter().any(|l| {
             let t = l.trim();
             let first = t.chars().next();
-            matches!(first, Some('+') | Some('┌') | Some('╔') | Some('╚') | Some('╭') | Some('╰'))
-            || (matches!(first, Some('└')) && t.ends_with('┘'))  // box border only, not tree branch
+            matches!(
+                first,
+                Some('+') | Some('┌') | Some('╔') | Some('╚') | Some('╭') | Some('╰')
+            ) || (matches!(first, Some('└')) && t.ends_with('┘')) // box border only, not tree branch
         });
 
         if has_box {
@@ -120,7 +134,11 @@ impl ChainClassifier {
 }
 
 impl Classifier for ChainClassifier {
-    fn classify(&self, fence_info: &str, content: &[&str]) -> Option<(ElementType, Option<String>)> {
+    fn classify(
+        &self,
+        fence_info: &str,
+        content: &[&str],
+    ) -> Option<(ElementType, Option<String>)> {
         for c in &self.classifiers {
             if let Some(result) = c.classify(fence_info, content) {
                 return Some(result);
@@ -172,11 +190,7 @@ mod tests {
     #[test]
     fn default_detects_box_figure() {
         let c = DefaultClassifier;
-        let content = &[
-            "┌──────────┐",
-            "│  Module  │",
-            "└──────────┘",
-        ];
+        let content = &["┌──────────┐", "│  Module  │", "└──────────┘"];
         let (t, _) = c.classify("", content).unwrap();
         assert_eq!(t, ElementType::Figure);
     }
@@ -184,11 +198,7 @@ mod tests {
     #[test]
     fn default_detects_tree() {
         let c = DefaultClassifier;
-        let content = &[
-            "root",
-            "├── child1",
-            "└── child2",
-        ];
+        let content = &["root", "├── child1", "└── child2"];
         let (t, _) = c.classify("", content).unwrap();
         assert_eq!(t, ElementType::Tree);
     }
@@ -208,10 +218,7 @@ mod tests {
             }
         }
 
-        let chain = ChainClassifier::new(vec![
-            Box::new(AlwaysMath),
-            Box::new(DefaultClassifier),
-        ]);
+        let chain = ChainClassifier::new(vec![Box::new(AlwaysMath), Box::new(DefaultClassifier)]);
 
         let (t, _) = chain.classify("anything", &[]).unwrap();
         assert_eq!(t, ElementType::Math);
@@ -221,7 +228,11 @@ mod tests {
     fn extension_classifier_overrides_default() {
         struct ProofLike;
         impl Classifier for ProofLike {
-            fn classify(&self, fence_info: &str, content: &[&str]) -> Option<(ElementType, Option<String>)> {
+            fn classify(
+                &self,
+                fence_info: &str,
+                content: &[&str],
+            ) -> Option<(ElementType, Option<String>)> {
                 match fence_info.trim() {
                     "proof:math" => Some((ElementType::Math, None)),
                     "proof:tree" => Some((ElementType::Tree, None)),
@@ -235,8 +246,14 @@ mod tests {
         let c = ProofLike;
         assert_eq!(c.classify("proof:math", &[]).unwrap().0, ElementType::Math);
         assert_eq!(c.classify("proof:tree", &[]).unwrap().0, ElementType::Tree);
-        assert_eq!(c.classify("proof:slide", &[]).unwrap().0, ElementType::Slide);
-        assert_eq!(c.classify("proof:region", &[]).unwrap().0, ElementType::Dashboard);
+        assert_eq!(
+            c.classify("proof:slide", &[]).unwrap().0,
+            ElementType::Slide
+        );
+        assert_eq!(
+            c.classify("proof:region", &[]).unwrap().0,
+            ElementType::Dashboard
+        );
         // Falls back to default for unknown
         assert!(c.classify("unknown", &[]).is_none());
     }

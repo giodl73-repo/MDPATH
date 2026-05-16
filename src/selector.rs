@@ -1,3 +1,4 @@
+use crate::error::MdPathError;
 /// Selector parsing for the type, kind, and index/label components.
 ///
 /// Grammar fragment handled here:
@@ -11,14 +12,12 @@
 /// Sub-selector grammar: `[key=value]`
 ///   - key: alphanumeric + underscore
 ///   - value: if all digits → index; otherwise → named string
-
 use crate::uri::{ElementType, Selector, SelectorValue, SubSelector};
-use crate::error::MdPathError;
 
 /// Parse a type string like "figure", "table.key-value", "chart.bar"
 pub fn parse_type_kind(s: &str) -> Result<(ElementType, Option<String>), MdPathError> {
     let (type_str, kind) = if let Some(dot) = s.find('.') {
-        (&s[..dot], Some(s[dot+1..].to_string()))
+        (&s[..dot], Some(s[dot + 1..].to_string()))
     } else {
         (s, None)
     };
@@ -55,13 +54,20 @@ pub fn parse_selector(s: &str) -> Selector {
 
 /// Parse a sub-selector string like `row=Binding,col=Value`.
 pub fn parse_sub_selectors(s: &str) -> Result<Vec<SubSelector>, MdPathError> {
-    if s.is_empty() { return Ok(vec![]); }
+    if s.is_empty() {
+        return Ok(vec![]);
+    }
     let mut result = Vec::new();
     for pair in s.split(',') {
         let pair = pair.trim();
-        if pair.is_empty() { continue; }
+        if pair.is_empty() {
+            continue;
+        }
         let (key, value) = pair.split_once('=').ok_or_else(|| {
-            MdPathError::ParseError(format!("invalid sub-selector {:?} — expected key=value", pair))
+            MdPathError::ParseError(format!(
+                "invalid sub-selector {:?} — expected key=value",
+                pair
+            ))
         })?;
         let key = key.trim().to_string();
         let val_str = value.trim();
@@ -78,15 +84,20 @@ pub fn parse_sub_selectors(s: &str) -> Result<Vec<SubSelector>, MdPathError> {
 /// Validate that a sub-selector is legal for the given element type.
 ///
 /// Invariant I-10: invalid combinations are rejected at parse time.
-pub fn validate_sub_selectors(element_type: &ElementType, sub_selectors: &[SubSelector]) -> Result<(), MdPathError> {
-    if sub_selectors.is_empty() { return Ok(()); }
+pub fn validate_sub_selectors(
+    element_type: &ElementType,
+    sub_selectors: &[SubSelector],
+) -> Result<(), MdPathError> {
+    if sub_selectors.is_empty() {
+        return Ok(());
+    }
 
     let allowed_keys: &[&str] = match element_type {
         ElementType::Figure => &["box", "row"],
         ElementType::Table => &["row", "col"],
         ElementType::Chart => &["bar"],
         ElementType::Text | ElementType::Heading => &[],
-        ElementType::Section => &[],  // addressing a section directly
+        ElementType::Section => &[], // addressing a section directly
         _ => &[],
     };
 
@@ -113,7 +124,10 @@ mod tests {
 
     #[test]
     fn named_selector() {
-        assert_eq!(parse_selector("goroutine-scheduler"), Selector::Named("goroutine-scheduler".into()));
+        assert_eq!(
+            parse_selector("goroutine-scheduler"),
+            Selector::Named("goroutine-scheduler".into())
+        );
         assert_eq!(parse_selector(""), Selector::None);
     }
 
@@ -138,7 +152,10 @@ mod tests {
 
     #[test]
     fn invalid_sub_selector_on_text() {
-        let subs = vec![SubSelector { key: "row".into(), value: SelectorValue::Named("X".into()) }];
+        let subs = vec![SubSelector {
+            key: "row".into(),
+            value: SelectorValue::Named("X".into()),
+        }];
         assert!(validate_sub_selectors(&ElementType::Text, &subs).is_err());
     }
 }

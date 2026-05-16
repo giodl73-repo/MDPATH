@@ -1,6 +1,8 @@
 use crate::error::MdPathError;
 use crate::heading::normalize_heading;
-use crate::selector::{parse_selector, parse_sub_selectors, parse_type_kind, validate_sub_selectors};
+use crate::selector::{
+    parse_selector, parse_sub_selectors, parse_type_kind, validate_sub_selectors,
+};
 
 /// A parsed `md://` URI.
 ///
@@ -28,16 +30,16 @@ pub struct MdUri {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ElementType {
-    Figure,      // ASCII art diagram (visual structure)
-    Table,       // Markdown pipe table
-    Chart,       // ASCII chart (bar, line, etc.)
-    Math,        // Math expression (LaTeX or rendered)
-    Tree,        // Tree/hierarchy diagram
-    Slide,       // Slide or presentation block
-    Dashboard,   // Dashboard canvas block
-    Text,        // Prose, list, or code block
-    Heading,     // Heading line
-    Section,     // Heading + content scope
+    Figure,    // ASCII art diagram (visual structure)
+    Table,     // Markdown pipe table
+    Chart,     // ASCII chart (bar, line, etc.)
+    Math,      // Math expression (LaTeX or rendered)
+    Tree,      // Tree/hierarchy diagram
+    Slide,     // Slide or presentation block
+    Dashboard, // Dashboard canvas block
+    Text,      // Prose, list, or code block
+    Heading,   // Heading line
+    Section,   // Heading + content scope
 }
 
 /// Strings over numbers — named selectors always preferred.
@@ -55,7 +57,10 @@ pub struct SubSelector {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum SelectorValue { Named(String), Index(usize) }
+pub enum SelectorValue {
+    Named(String),
+    Index(usize),
+}
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct QueryParams {
@@ -77,21 +82,23 @@ impl MdUri {
     /// 5. From remainder: split on first `:` → heading-path + type/selector block
     /// 6. From type/selector block: split on first `:` → type.kind + selector
     pub fn parse(s: &str) -> Result<Self, MdPathError> {
-        let rest = s.strip_prefix("md://")
-            .ok_or_else(|| MdPathError::ParseError(
-                format!("URI must start with md://, got: {:?}", s)
-            ))?;
+        let rest = s.strip_prefix("md://").ok_or_else(|| {
+            MdPathError::ParseError(format!("URI must start with md://, got: {:?}", s))
+        })?;
 
         // Split path from fragment at first `#`
         let (path, fragment) = rest.split_once('#').unwrap_or((rest, ""));
 
         if path.is_empty() {
-            return Err(MdPathError::ParseError("md:// path component is empty".into()));
+            return Err(MdPathError::ParseError(
+                "md:// path component is empty".into(),
+            ));
         }
         if !path.ends_with(".md") {
-            return Err(MdPathError::ParseError(
-                format!("md:// path must end in .md, got: {:?}", path)
-            ));
+            return Err(MdPathError::ParseError(format!(
+                "md:// path must end in .md, got: {:?}",
+                path
+            )));
         }
 
         // Parse the fragment (everything after #)
@@ -127,16 +134,16 @@ impl MdUri {
             None => String::new(),
             Some(t) => {
                 let base = match t {
-                    ElementType::Figure    => "figure",
-                    ElementType::Table     => "table",
-                    ElementType::Chart     => "chart",
-                    ElementType::Math      => "math",
-                    ElementType::Tree      => "tree",
-                    ElementType::Slide     => "slide",
+                    ElementType::Figure => "figure",
+                    ElementType::Table => "table",
+                    ElementType::Chart => "chart",
+                    ElementType::Math => "math",
+                    ElementType::Tree => "tree",
+                    ElementType::Slide => "slide",
                     ElementType::Dashboard => "dashboard",
-                    ElementType::Text      => "text",
-                    ElementType::Heading   => "heading",
-                    ElementType::Section   => "section",
+                    ElementType::Text => "text",
+                    ElementType::Heading => "heading",
+                    ElementType::Section => "section",
                 };
                 match &self.kind {
                     None => base.to_string(),
@@ -180,9 +187,15 @@ impl MdUri {
             if let Some(f) = &q.filter {
                 parts.push(format!("filter={}", f));
             }
-            if q.count { parts.push("count".to_string()); }
-            if let Some(n) = q.top { parts.push(format!("top={}", n)); }
-            if let Some(n) = q.skip { parts.push(format!("skip={}", n)); }
+            if q.count {
+                parts.push("count".to_string());
+            }
+            if let Some(n) = q.top {
+                parts.push(format!("top={}", n));
+            }
+            if let Some(n) = q.skip {
+                parts.push(format!("skip={}", n));
+            }
             if !parts.is_empty() {
                 s.push('?');
                 s.push_str(&parts.join("&"));
@@ -203,21 +216,30 @@ impl MdUri {
 /// Parse the fragment portion (everything after `#`).
 ///
 /// Extraction order matters — later steps must not see content already extracted.
-fn parse_fragment(fragment: &str) -> Result<(
-    Vec<String>,        // heading_path
-    Option<ElementType>, // element_type
-    Option<String>,     // kind
-    Selector,           // selector
-    Vec<SubSelector>,   // sub_selectors
-    Option<QueryParams>, // query
-), MdPathError> {
+fn parse_fragment(
+    fragment: &str,
+) -> Result<
+    (
+        Vec<String>,         // heading_path
+        Option<ElementType>, // element_type
+        Option<String>,      // kind
+        Selector,            // selector
+        Vec<SubSelector>,    // sub_selectors
+        Option<QueryParams>, // query
+    ),
+    MdPathError,
+> {
     if fragment.is_empty() {
         return Ok((vec![], None, None, Selector::None, vec![], None));
     }
 
     // Step 1: Extract ?query from end
     let (main, query_str) = fragment.split_once('?').unwrap_or((fragment, ""));
-    let query = if query_str.is_empty() { None } else { Some(parse_query(query_str)?) };
+    let query = if query_str.is_empty() {
+        None
+    } else {
+        Some(parse_query(query_str)?)
+    };
 
     // Step 2: Extract [sub-selectors] from end of main
     let (main, sub_str) = extract_sub_selectors(main);
@@ -234,13 +256,27 @@ fn parse_fragment(fragment: &str) -> Result<(
         .collect();
 
     if type_sel_block.is_empty() {
-        return Ok((heading_path, None, None, Selector::None, sub_selectors, query));
+        return Ok((
+            heading_path,
+            None,
+            None,
+            Selector::None,
+            sub_selectors,
+            query,
+        ));
     }
 
     // Step 4: Parse type[.kind][:selector]
     let (element_type, kind, selector) = parse_type_sel_block(type_sel_block)?;
 
-    Ok((heading_path, element_type, kind, selector, sub_selectors, query))
+    Ok((
+        heading_path,
+        element_type,
+        kind,
+        selector,
+        sub_selectors,
+        query,
+    ))
 }
 
 /// Extract `[sub-selector-content]` from the end of a string.
@@ -249,14 +285,16 @@ fn extract_sub_selectors(s: &str) -> (&str, &str) {
     // Find the FIRST `[` (sub-selectors always come before `?`)
     if let Some(open) = s.find('[') {
         if s.ends_with(']') {
-            return (&s[..open], &s[open+1..s.len()-1]);
+            return (&s[..open], &s[open + 1..s.len() - 1]);
         }
     }
     (s, "")
 }
 
 /// Parse `type[.kind][:selector]` block — the part after the first `:` in the fragment.
-fn parse_type_sel_block(block: &str) -> Result<(Option<ElementType>, Option<String>, Selector), MdPathError> {
+fn parse_type_sel_block(
+    block: &str,
+) -> Result<(Option<ElementType>, Option<String>, Selector), MdPathError> {
     // Could be:
     //   "0"                    → selector only (integer shorthand)
     //   "goroutine-scheduler"  → selector only (named shorthand)
@@ -268,7 +306,7 @@ fn parse_type_sel_block(block: &str) -> Result<(Option<ElementType>, Option<Stri
     // First check if there's a second `:` → type:selector
     if let Some(colon) = block.find(':') {
         let type_part = &block[..colon];
-        let sel_part = &block[colon+1..];
+        let sel_part = &block[colon + 1..];
         let (etype, kind) = parse_type_kind(type_part)?;
         let selector = parse_selector(sel_part);
         return Ok((Some(etype), kind, selector));
@@ -277,7 +315,10 @@ fn parse_type_sel_block(block: &str) -> Result<(Option<ElementType>, Option<Stri
     // No second colon — could be type-only, or shorthand selector
     // Distinguish: if it looks like a type name or type.kind, treat as type
     // Otherwise treat as selector
-    let is_type = matches!(block.split('.').next(), Some("figure" | "table" | "chart" | "text" | "heading" | "section"));
+    let is_type = matches!(
+        block.split('.').next(),
+        Some("figure" | "table" | "chart" | "text" | "heading" | "section")
+    );
 
     if is_type {
         let (etype, kind) = parse_type_kind(block)?;
@@ -293,15 +334,22 @@ fn parse_query(s: &str) -> Result<QueryParams, MdPathError> {
     let mut q = QueryParams::default();
     for pair in s.split('&') {
         let pair = pair.trim();
-        if pair.is_empty() { continue; }
-        if pair == "count" { q.count = true; continue; }
+        if pair.is_empty() {
+            continue;
+        }
+        if pair == "count" {
+            q.count = true;
+            continue;
+        }
 
         if let Some((key, value)) = pair.split_once('=') {
             match key.trim() {
                 "select" => {
                     q.select = Some(value.split(',').map(|s| s.trim().to_string()).collect());
                 }
-                "filter" => { q.filter = Some(value.to_string()); }
+                "filter" => {
+                    q.filter = Some(value.to_string());
+                }
                 "top" => {
                     q.top = Some(value.parse().map_err(|_| {
                         MdPathError::ParseError(format!("?top must be an integer, got {:?}", value))
@@ -309,11 +357,17 @@ fn parse_query(s: &str) -> Result<QueryParams, MdPathError> {
                 }
                 "skip" => {
                     q.skip = Some(value.parse().map_err(|_| {
-                        MdPathError::ParseError(format!("?skip must be an integer, got {:?}", value))
+                        MdPathError::ParseError(format!(
+                            "?skip must be an integer, got {:?}",
+                            value
+                        ))
                     })?);
                 }
                 other => {
-                    return Err(MdPathError::ParseError(format!("unknown query parameter {:?}", other)));
+                    return Err(MdPathError::ParseError(format!(
+                        "unknown query parameter {:?}",
+                        other
+                    )));
                 }
             }
         }
@@ -325,7 +379,9 @@ fn parse_query(s: &str) -> Result<QueryParams, MdPathError> {
 mod tests {
     use super::*;
 
-    fn parse(s: &str) -> MdUri { MdUri::parse(s).unwrap() }
+    fn parse(s: &str) -> MdUri {
+        MdUri::parse(s).unwrap()
+    }
 
     // ── Basic forms ────────────────────────────────────────────────────────
 
@@ -386,7 +442,8 @@ mod tests {
 
     #[test]
     fn figure_flowchart_named() {
-        let u = parse("md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler");
+        let u =
+            parse("md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler");
         assert_eq!(u.heading_path, vec!["concurrency-model"]);
         assert_eq!(u.element_type, Some(ElementType::Figure));
         assert_eq!(u.kind, Some("flowchart".into()));
@@ -428,11 +485,15 @@ mod tests {
 
     #[test]
     fn sub_selector_box() {
-        let u = parse("md://computing/02-C.md#compilation-pipeline:figure.flowchart:0[box=PREPROCESSOR]");
+        let u = parse(
+            "md://computing/02-C.md#compilation-pipeline:figure.flowchart:0[box=PREPROCESSOR]",
+        );
         assert_eq!(u.element_type, Some(ElementType::Figure));
         assert_eq!(u.selector, Selector::Index(0));
         assert_eq!(u.sub_selectors[0].key, "box");
-        assert!(matches!(&u.sub_selectors[0].value, SelectorValue::Named(s) if s == "PREPROCESSOR"));
+        assert!(
+            matches!(&u.sub_selectors[0].value, SelectorValue::Named(s) if s == "PREPROCESSOR")
+        );
     }
 
     // ── Query parameters ──────────────────────────────────────────────────
@@ -502,7 +563,8 @@ mod tests {
             let parsed = MdUri::parse(uri).unwrap();
             let emitted = parsed.to_uri_string();
             // Must re-parse without error (round-trip stability)
-            MdUri::parse(&emitted).unwrap_or_else(|e| panic!("round-trip failed for {}: {} → {}", uri, emitted, e));
+            MdUri::parse(&emitted)
+                .unwrap_or_else(|e| panic!("round-trip failed for {}: {} → {}", uri, emitted, e));
         }
     }
 }

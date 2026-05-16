@@ -7,22 +7,25 @@
 /// Detect the kind of a figure from its content lines.
 /// Returns the kind string (e.g. "flowchart", "layer-stack") or None if uncategorized.
 pub fn detect_figure_kind(content: &[&str]) -> Option<&'static str> {
-    let full = content.join("\n");
-
     // Count structural signals
     let box_count = count_boxes(content);
     let has_connector_arrows = has_connectors(content);
     let has_forward_arrows = has_forward_arrows(content);
     let has_tree_branches = has_tree_branches(content);
-    let has_grid = has_grid_structure(content);
     let side_by_side = has_side_by_side_boxes(content);
     let is_bar_chart = is_bar_chart(content);
 
-    if is_bar_chart { return Some("bar"); }
+    if is_bar_chart {
+        return Some("bar");
+    }
 
-    if box_count == 0 { return None; } // No boxes — uncategorized
+    if box_count == 0 {
+        return None;
+    } // No boxes — uncategorized
 
-    if box_count == 1 { return Some("box"); }
+    if box_count == 1 {
+        return Some("box");
+    }
 
     // Multiple boxes:
     if side_by_side && !has_connector_arrows {
@@ -53,12 +56,10 @@ pub fn detect_figure_kind(content: &[&str]) -> Option<&'static str> {
 pub fn figure_matches_kind(content: &[&str], kind: Option<&str>) -> bool {
     match kind {
         None => true,
-        Some(requested) => {
-            match detect_figure_kind(content) {
-                None => false,
-                Some(detected) => detected == requested,
-            }
-        }
+        Some(requested) => match detect_figure_kind(content) {
+            None => false,
+            Some(detected) => detected == requested,
+        },
     }
 }
 
@@ -67,30 +68,63 @@ pub fn figure_matches_kind(content: &[&str], kind: Option<&str>) -> bool {
 // ─────────────────────────────────────────────────────────
 
 fn count_boxes(lines: &[&str]) -> usize {
-    lines.iter().filter(|l| {
-        let t = l.trim();
-        // A border line: starts with + or ┌/└ and has fill chars
-        is_box_border(t)
-    }).count() / 2 // Each box has top + bottom border → divide by 2 (approximate)
+    lines
+        .iter()
+        .filter(|l| {
+            let t = l.trim();
+            // A border line: starts with + or ┌/└ and has fill chars
+            is_box_border(t)
+        })
+        .count()
+        / 2 // Each box has top + bottom border → divide by 2 (approximate)
 }
 
 fn is_box_border(trimmed: &str) -> bool {
     let first = trimmed.chars().next();
-    matches!(first, Some('+') | Some('┌') | Some('└') | Some('╔') | Some('╚') | Some('╭') | Some('╰')) &&
-    trimmed.chars().filter(|c| matches!(c, '+' | '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '╔' | '╗' | '╚' | '╝')).count() >= 2
+    matches!(
+        first,
+        Some('+') | Some('┌') | Some('└') | Some('╔') | Some('╚') | Some('╭') | Some('╰')
+    ) && trimmed
+        .chars()
+        .filter(|c| {
+            matches!(
+                c,
+                '+' | '┌'
+                    | '┐'
+                    | '└'
+                    | '┘'
+                    | '├'
+                    | '┤'
+                    | '┬'
+                    | '┴'
+                    | '┼'
+                    | '╔'
+                    | '╗'
+                    | '╚'
+                    | '╝'
+            )
+        })
+        .count()
+        >= 2
 }
 
 fn has_connectors(lines: &[&str]) -> bool {
     lines.iter().any(|l| {
         let t = l.trim();
         // Standalone vertical connector lines (│ alone or with ▼/▲/↓/↑)
-        matches!(t, "│" | "▼" | "▲" | "↓" | "↑") ||
-        t.chars().filter(|c| matches!(c, '│')).count() == 1 && t.len() < 5
+        matches!(t, "│" | "▼" | "▲" | "↓" | "↑")
+            || t.chars().filter(|c| matches!(c, '│')).count() == 1 && t.len() < 5
     })
 }
 
 fn has_forward_arrows(lines: &[&str]) -> bool {
-    lines.iter().any(|l| l.contains('→') || l.contains('►') || l.contains("-->") || l.contains("──►") || l.contains('▶'))
+    lines.iter().any(|l| {
+        l.contains('→')
+            || l.contains('►')
+            || l.contains("-->")
+            || l.contains("──►")
+            || l.contains('▶')
+    })
 }
 
 fn has_tree_branches(lines: &[&str]) -> bool {
@@ -98,22 +132,11 @@ fn has_tree_branches(lines: &[&str]) -> bool {
         let t = l.trim();
         // ├── or └── followed by text (NOT followed only by box chars)
         // Must NOT be a box border (which would end with ┘ or +)
-        let starts_branch = t.starts_with('├') || t.starts_with('└') ||
-            t.contains(" ├") || t.contains(" └");
+        let starts_branch =
+            t.starts_with('├') || t.starts_with('└') || t.contains(" ├") || t.contains(" └");
         let is_box_border = t.ends_with('┘') || t.ends_with('╝') || t.ends_with('+');
         starts_branch && !is_box_border
     })
-}
-
-fn has_grid_structure(lines: &[&str]) -> bool {
-    // A grid has multiple rows each with the same number of | chars
-    let pipe_counts: Vec<usize> = lines.iter()
-        .filter(|l| l.contains('│') || l.contains('|'))
-        .map(|l| l.chars().filter(|c| matches!(c, '│' | '|')).count())
-        .collect();
-    if pipe_counts.len() < 3 { return false; }
-    let first = pipe_counts[0];
-    pipe_counts.iter().all(|&c| c == first) && first >= 4
 }
 
 fn has_side_by_side_boxes(lines: &[&str]) -> bool {
@@ -129,25 +152,39 @@ fn is_layer_stack(lines: &[&str]) -> bool {
     // Flowcharts have ▼/↓/▲ arrows between boxes — layer stacks do not.
     let has_directional_arrows = lines.iter().any(|l| {
         let t = l.trim();
-        matches!(t, "▼" | "↓" | "▲" | "↑") ||
-        t.contains('▼') || t.contains('↓') || t.contains('▲') || t.contains('↑')
+        matches!(t, "▼" | "↓" | "▲" | "↑")
+            || t.contains('▼')
+            || t.contains('↓')
+            || t.contains('▲')
+            || t.contains('↑')
     });
-    if has_directional_arrows { return false; }
+    if has_directional_arrows {
+        return false;
+    }
 
-    let border_widths: Vec<usize> = lines.iter()
+    let border_widths: Vec<usize> = lines
+        .iter()
         .filter(|l| is_box_border(l.trim()))
         .map(|l| l.chars().count())
         .collect();
-    if border_widths.len() < 4 { return false; }
+    if border_widths.len() < 4 {
+        return false;
+    }
     let first = border_widths[0];
     let all_same = border_widths.iter().all(|&w| w.abs_diff(first) <= 2);
     all_same
 }
 
 fn is_bar_chart(lines: &[&str]) -> bool {
-    let bar_lines = lines.iter().filter(|l| {
-        l.chars().filter(|c| matches!(c, '█' | '▓' | '▒' | '░')).count() >= 3
-    }).count();
+    let bar_lines = lines
+        .iter()
+        .filter(|l| {
+            l.chars()
+                .filter(|c| matches!(c, '█' | '▓' | '▒' | '░'))
+                .count()
+                >= 3
+        })
+        .count();
     bar_lines >= 2
 }
 

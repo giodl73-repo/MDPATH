@@ -1,6 +1,5 @@
 /// Markdown document parser — builds ParsedDocument from file content.
 /// Reads a file exactly once; the result is cached in BatchResolver.
-
 use crate::document::*;
 use crate::heading::normalize_heading;
 use crate::label::{detect_inline_label, detect_preceding_label};
@@ -71,9 +70,22 @@ pub fn parse_document(content: &str) -> ParsedDocument {
             if let Some((fc, fl, fi)) = detect_fence_open(trimmed) {
                 // Flush pending paragraph and table
                 let h_idx = headings.len().saturating_sub(1);
-                flush_para(&mut elements, &mut para_lines, &mut para_start, &mut in_para, h_idx, line_no.saturating_sub(1));
+                flush_para(
+                    &mut elements,
+                    &mut para_lines,
+                    &mut para_start,
+                    &mut in_para,
+                    h_idx,
+                    line_no.saturating_sub(1),
+                );
                 if in_table {
-                    flush_table(&mut elements, &mut table_rows, table_start, h_idx, line_no.saturating_sub(1));
+                    flush_table(
+                        &mut elements,
+                        &mut table_rows,
+                        table_start,
+                        h_idx,
+                        line_no.saturating_sub(1),
+                    );
                     in_table = false;
                 }
 
@@ -90,9 +102,22 @@ pub fn parse_document(content: &str) -> ParsedDocument {
             // Check for heading
             if trimmed.starts_with('#') {
                 let h_idx = headings.len().saturating_sub(1);
-                flush_para(&mut elements, &mut para_lines, &mut para_start, &mut in_para, h_idx, line_no.saturating_sub(1));
+                flush_para(
+                    &mut elements,
+                    &mut para_lines,
+                    &mut para_start,
+                    &mut in_para,
+                    h_idx,
+                    line_no.saturating_sub(1),
+                );
                 if in_table {
-                    flush_table(&mut elements, &mut table_rows, table_start, h_idx, line_no.saturating_sub(1));
+                    flush_table(
+                        &mut elements,
+                        &mut table_rows,
+                        table_start,
+                        h_idx,
+                        line_no.saturating_sub(1),
+                    );
                     in_table = false;
                     table_rows.clear();
                 }
@@ -100,19 +125,32 @@ pub fn parse_document(content: &str) -> ParsedDocument {
                 let level = trimmed.chars().take_while(|&c| c == '#').count();
                 let text = trimmed[level..].trim().to_string();
                 let anchor = normalize_heading(&text);
-                headings.push(ParsedHeading { level, text, anchor, line: line_no });
+                headings.push(ParsedHeading {
+                    level,
+                    text,
+                    anchor,
+                    line: line_no,
+                });
                 i += 1;
                 continue;
             }
 
             // Check for table row
-            let is_table_row = trimmed.starts_with('|') && trimmed.ends_with('|')
+            let is_table_row = trimmed.starts_with('|')
+                && trimmed.ends_with('|')
                 && trimmed.chars().filter(|&c| c == '|').count() >= 2;
 
             if is_table_row {
                 let h_idx = headings.len().saturating_sub(1);
                 if in_para {
-                    flush_para(&mut elements, &mut para_lines, &mut para_start, &mut in_para, h_idx, line_no.saturating_sub(1));
+                    flush_para(
+                        &mut elements,
+                        &mut para_lines,
+                        &mut para_start,
+                        &mut in_para,
+                        h_idx,
+                        line_no.saturating_sub(1),
+                    );
                 }
                 if !in_table {
                     table_start = line_no;
@@ -128,7 +166,9 @@ pub fn parse_document(content: &str) -> ParsedDocument {
                 let h_idx = headings.len().saturating_sub(1);
                 if table_rows.len() >= 2 {
                     let rows: Vec<&str> = table_rows.drain(..).collect();
-                    if let Some(parsed) = try_parse_table(&rows, table_start, line_no.saturating_sub(1), h_idx) {
+                    if let Some(parsed) =
+                        try_parse_table(&rows, table_start, line_no.saturating_sub(1), h_idx)
+                    {
                         elements.push(ParsedElement::Table(parsed));
                     }
                 } else {
@@ -140,7 +180,14 @@ pub fn parse_document(content: &str) -> ParsedDocument {
             // Blank line ends paragraph
             if trimmed.is_empty() {
                 let h_idx = headings.len().saturating_sub(1);
-                flush_para(&mut elements, &mut para_lines, &mut para_start, &mut in_para, h_idx, line_no.saturating_sub(1));
+                flush_para(
+                    &mut elements,
+                    &mut para_lines,
+                    &mut para_start,
+                    &mut in_para,
+                    h_idx,
+                    line_no.saturating_sub(1),
+                );
                 i += 1;
                 continue;
             }
@@ -156,7 +203,7 @@ pub fn parse_document(content: &str) -> ParsedDocument {
         }
 
         // Inside fence — check for closing fence
-        if let Some(closes) = detect_fence_close(trimmed, fence_char, fence_len) {
+        if detect_fence_close(trimmed, fence_char, fence_len).is_some() {
             let h_idx = headings.len().saturating_sub(1);
 
             // Detect label from preceding prose lines (Rule 2)
@@ -165,8 +212,7 @@ pub fn parse_document(content: &str) -> ParsedDocument {
 
             // Detect label from inline content (Rule 1)
             let content_refs: Vec<&str> = fence_content.iter().map(|s| s.as_str()).collect();
-            let label = detect_inline_label(&fence_info, &content_refs)
-                .or(rule2_label);
+            let label = detect_inline_label(&fence_info, &content_refs).or(rule2_label);
 
             elements.push(ParsedElement::CodeBlock(CodeBlock {
                 fence_info: std::mem::take(&mut fence_info),
@@ -233,9 +279,13 @@ pub fn parse_document(content: &str) -> ParsedDocument {
 /// Detect an opening fence. Returns (fence_char, fence_len, info_string) or None.
 fn detect_fence_open(trimmed: &str) -> Option<(char, usize, String)> {
     let first = trimmed.chars().next()?;
-    if !matches!(first, '`' | '~') { return None; }
+    if !matches!(first, '`' | '~') {
+        return None;
+    }
     let len = trimmed.chars().take_while(|&c| c == first).count();
-    if len < 3 { return None; }
+    if len < 3 {
+        return None;
+    }
     let info = trimmed[len..].trim().to_string();
     Some((first, len, info))
 }
@@ -243,16 +293,31 @@ fn detect_fence_open(trimmed: &str) -> Option<(char, usize, String)> {
 /// Detect a closing fence matching the given char and minimum length.
 fn detect_fence_close(trimmed: &str, fence_char: char, fence_len: usize) -> Option<()> {
     let first = trimmed.chars().next()?;
-    if first != fence_char { return None; }
+    if first != fence_char {
+        return None;
+    }
     let len = trimmed.chars().take_while(|&c| c == fence_char).count();
-    if len >= fence_len && trimmed[len..].trim().is_empty() { Some(()) } else { None }
+    if len >= fence_len && trimmed[len..].trim().is_empty() {
+        Some(())
+    } else {
+        None
+    }
 }
 
 /// Try to parse a slice of table lines into a ParsedTable.
-fn try_parse_table(rows: &[&str], line_start: usize, line_end: usize, heading_idx: usize) -> Option<ParsedTable> {
-    if rows.len() < 2 { return None; }
+fn try_parse_table(
+    rows: &[&str],
+    line_start: usize,
+    line_end: usize,
+    heading_idx: usize,
+) -> Option<ParsedTable> {
+    if rows.len() < 2 {
+        return None;
+    }
     let headers = parse_table_row(rows[0]);
-    if headers.is_empty() { return None; }
+    if headers.is_empty() {
+        return None;
+    }
 
     // Row 1 must be a separator
     let sep = parse_table_row(rows[1]);
@@ -260,11 +325,11 @@ fn try_parse_table(rows: &[&str], line_start: usize, line_end: usize, heading_id
         let c = cell.trim().trim_start_matches(':').trim_end_matches(':');
         c.chars().all(|ch| ch == '-') && !c.is_empty()
     });
-    if !is_sep { return None; }
+    if !is_sep {
+        return None;
+    }
 
-    let body_rows: Vec<Vec<String>> = rows[2..].iter()
-        .map(|r| parse_table_row(r))
-        .collect();
+    let body_rows: Vec<Vec<String>> = rows[2..].iter().map(|r| parse_table_row(r)).collect();
 
     Some(ParsedTable {
         headers,
@@ -279,10 +344,13 @@ fn try_parse_table(rows: &[&str], line_start: usize, line_end: usize, heading_id
 /// Split a GFM table row into cells using escaped-pipe-aware parsing.
 fn parse_table_row(line: &str) -> Vec<String> {
     let trimmed = line.trim();
-    if !trimmed.starts_with('|') { return vec![]; }
-    let inner = &trimmed[1..trimmed.len().saturating_sub(
-        if trimmed.ends_with('|') { 1 } else { 0 }
-    )];
+    if !trimmed.starts_with('|') {
+        return vec![];
+    }
+    let inner =
+        &trimmed[1..trimmed
+            .len()
+            .saturating_sub(if trimmed.ends_with('|') { 1 } else { 0 })];
 
     let mut cells = Vec::new();
     let mut current = String::new();
@@ -291,10 +359,22 @@ fn parse_table_row(line: &str) -> Vec<String> {
 
     while let Some(c) = chars.next() {
         match c {
-            '\\' if chars.peek() == Some(&'|') => { current.push('\\'); current.push('|'); chars.next(); }
-            '`' => { in_code = !in_code; current.push(c); }
-            '|' if !in_code => { cells.push(current.clone()); current.clear(); }
-            other => { current.push(other); }
+            '\\' if chars.peek() == Some(&'|') => {
+                current.push('\\');
+                current.push('|');
+                chars.next();
+            }
+            '`' => {
+                in_code = !in_code;
+                current.push(c);
+            }
+            '|' if !in_code => {
+                cells.push(current.clone());
+                current.clear();
+            }
+            other => {
+                current.push(other);
+            }
         }
     }
     cells.push(current);
@@ -345,10 +425,14 @@ More prose here.
     #[test]
     fn code_block_with_label() {
         let doc = parse_document(SAMPLE);
-        let blocks: Vec<_> = doc.elements.iter().filter_map(|e| match e {
-            ParsedElement::CodeBlock(b) => Some(b),
-            _ => None,
-        }).collect();
+        let blocks: Vec<_> = doc
+            .elements
+            .iter()
+            .filter_map(|e| match e {
+                ParsedElement::CodeBlock(b) => Some(b),
+                _ => None,
+            })
+            .collect();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].label.as_deref(), Some("LAYER DIAGRAM"));
     }
@@ -356,10 +440,14 @@ More prose here.
     #[test]
     fn table_parsed() {
         let doc = parse_document(SAMPLE);
-        let tables: Vec<_> = doc.elements.iter().filter_map(|e| match e {
-            ParsedElement::Table(t) => Some(t),
-            _ => None,
-        }).collect();
+        let tables: Vec<_> = doc
+            .elements
+            .iter()
+            .filter_map(|e| match e {
+                ParsedElement::Table(t) => Some(t),
+                _ => None,
+            })
+            .collect();
         assert_eq!(tables.len(), 1);
         assert_eq!(tables[0].headers[0].trim(), "Axis");
         assert_eq!(tables[0].rows.len(), 2);
@@ -368,7 +456,11 @@ More prose here.
     #[test]
     fn elements_in_section() {
         let doc = parse_document(SAMPLE);
-        let big_pic_idx = doc.headings.iter().position(|h| h.anchor == "the-big-picture").unwrap();
+        let big_pic_idx = doc
+            .headings
+            .iter()
+            .position(|h| h.anchor == "the-big-picture")
+            .unwrap();
         let elems = doc.elements_in_section(big_pic_idx);
         // Should include the code block and sub-section's table (both are in "the-big-picture" scope)
         assert!(!elems.is_empty());
@@ -378,7 +470,11 @@ More prose here.
     fn heading_path_resolution() {
         let doc = parse_document(SAMPLE);
         // Find "sub-section" as child of "the-big-picture"
-        let parent_idx = doc.headings.iter().position(|h| h.anchor == "the-big-picture").unwrap();
+        let parent_idx = doc
+            .headings
+            .iter()
+            .position(|h| h.anchor == "the-big-picture")
+            .unwrap();
         let matches = doc.find_heading("sub-section", Some(parent_idx));
         assert_eq!(matches.len(), 1);
     }
@@ -387,7 +483,11 @@ More prose here.
     fn no_false_positive_on_adjacent_section() {
         let doc = parse_document(SAMPLE);
         // "sub-section" should NOT be found as child of "second-section"
-        let parent_idx = doc.headings.iter().position(|h| h.anchor == "second-section").unwrap();
+        let parent_idx = doc
+            .headings
+            .iter()
+            .position(|h| h.anchor == "second-section")
+            .unwrap();
         let matches = doc.find_heading("sub-section", Some(parent_idx));
         assert_eq!(matches.len(), 0);
     }

@@ -34,10 +34,10 @@ pub mod selector;
 pub mod subselect;
 pub mod uri;
 
-pub use classify::{Classifier, DefaultClassifier, ChainClassifier};
+pub use classify::{ChainClassifier, Classifier, DefaultClassifier};
 pub use error::MdPathError;
-pub use uri::{MdUri, ElementType};
 pub use resolver::ResolvedElement;
+pub use uri::{ElementType, MdUri};
 
 /// Parse an `md://` URI from a string.
 pub fn parse(uri: &str) -> Result<MdUri, MdPathError> {
