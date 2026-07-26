@@ -8,6 +8,22 @@
 [ROLES](https://github.com/giodl73-repo/ROLES), the `.roles` convention for
 repository-local review panels.
 
+## MD family
+
+MDPATH is the addressing layer in the MD family:
+
+```text
+Markdown → MDPATH → MDCROP → MDLOOM → MDPORT
+             address    select     build      transfer
+```
+
+| Repo | Responsibility |
+|------|----------------|
+| **MDPATH** | Stable `md://` addresses for Markdown elements. |
+| [MDCROP](https://github.com/giodl73-repo/MDCROP) | Corpus indexing, graph selection, and bounded context. |
+| [MDLOOM](https://github.com/giodl73-repo/MDLOOM) | Validation, compilation, rendering, and publication. |
+| [MDPORT](https://github.com/giodl73-repo/MDPORT) | Compact portable `mdport.v1` records. |
+
 Line numbers break. File paths break. `md://` URIs don't.
 
 mdpath gives every element in every markdown file a permanent name — based on
@@ -19,9 +35,9 @@ md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler
     └── file ──────────┘ └── section ────┘ └── type.kind ─┘ └── named label ──┘
 ```
 
-It powers [proof](../proof/README.md) — a full markdown compilation toolchain
+It powers [MDLOOM](https://github.com/giodl73-repo/MDLOOM) — a full Markdown compilation toolchain
 running across a 2,700-file corpus of technical guides, presentations, and
-dashboards. Every `proof:include`, `proof:xref`, `proof:toc`, and DaVinci pin
+dashboards. Every `mdloom:include`, `mdloom:xref`, `mdloom:toc`, and DaVinci pin
 resolves through mdpath at compile time.
 
 ```rust
