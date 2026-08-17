@@ -1,0 +1,9 @@
+{
+  "schema": "mdpath.proof.v1",
+  "status": "accepted",
+  "uri": "md://fixtures/proof/corpus.md#proof-surface:figure:accepted-diagram",
+  "element_type": "figure",
+  "label": "accepted-diagram",
+  "line_start": 3,
+  "line_end": 6
+}

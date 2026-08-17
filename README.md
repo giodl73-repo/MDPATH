@@ -250,6 +250,10 @@ supplies `ProofClassifier` mapping `proof:math` → Math, `proof:tree` → Tree,
 
 ## Guides
 
+The retained [proof surface](docs/proof-surface.md) records one accepted named
+resolution and one structured ambiguity failure. Run it with
+`cargo test --test proof_surface`.
+
 ```bash
 bash scripts/build-guides.sh     # compile src/guides/ → docs/guides/
 ```

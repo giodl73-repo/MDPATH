@@ -16,6 +16,3 @@ path = "src/lib.rs"
 thiserror = "2"
 # Note: md:// paths must be unencoded (no percent-encoding support).
 # Paths like "01%20PACKAGE.md" will be looked up verbatim on disk.
-
-[dev-dependencies]
-pretty_assertions = "1"

@@ -1,0 +1,10 @@
+{
+  "schema": "mdpath.proof.v1",
+  "status": "rejected",
+  "uri": "md://fixtures/proof/corpus.md#proof-surface:figure:duplicate",
+  "error": {
+    "kind": "label-ambiguous",
+    "label": "duplicate",
+    "count": 2
+  }
+}
