@@ -1,0 +1,8 @@
+{
+  "schema": "mdpath.consumer-proof.v1",
+  "consumer": "AMAZE",
+  "status": "accepted",
+  "surface": "document-parse-and-heading-normalization",
+  "heading_count": 3,
+  "normalized_heading": "inputoutput-handling"
+}

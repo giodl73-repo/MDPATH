@@ -254,6 +254,11 @@ The retained [proof surface](docs/proof-surface.md) records one accepted named
 resolution and one structured ambiguity failure. Run it with
 `cargo test --test proof_surface`.
 
+The [consumer compatibility](docs/consumer-compatibility.md) surface retains
+representative canaries for AMAZE document parsing, MDCROP section resolution,
+and MDLOOM typed-fence resolution. Run it with
+`cargo test --test consumer_contracts`.
+
 ```bash
 bash scripts/build-guides.sh     # compile src/guides/ → docs/guides/
 ```

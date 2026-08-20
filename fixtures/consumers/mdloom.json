@@ -1,0 +1,11 @@
+{
+  "schema": "mdpath.consumer-proof.v1",
+  "consumer": "MDLOOM",
+  "status": "accepted",
+  "surface": "typed-fence-resolution",
+  "uri": "md://fixtures/consumers/corpus.md#consumer-contract:math:energy-balance",
+  "label": "energy-balance",
+  "element_type": "math",
+  "line_start": 10,
+  "line_end": 12
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "mdpath.consumer-proof.v1",
+  "consumer": "MDCROP",
+  "status": "accepted",
+  "surface": "canonical-section-resolution",
+  "uri": "fixtures/consumers/corpus.md",
+  "label": "Input/Output Handling",
+  "element_type": "section",
+  "line_start": 3,
+  "line_end": 3
+}

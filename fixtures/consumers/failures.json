@@ -1,0 +1,16 @@
+{
+  "schema": "mdpath.consumer-proof.v1",
+  "status": "rejected",
+  "failures": [
+    {
+      "surface": "uri-parse",
+      "kind": "parse-error",
+      "input": "https://example.invalid/corpus.md"
+    },
+    {
+      "surface": "section-resolution",
+      "kind": "section-not-found",
+      "segment": "missing"
+    }
+  ]
+}

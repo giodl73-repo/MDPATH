@@ -20,6 +20,7 @@ pub fn parse_document(content: &str) -> ParsedDocument {
     let mut fence_info = String::new();
     let mut fence_start = 0usize;
     let mut fence_content: Vec<String> = Vec::new();
+    let mut fence_preceding_label: Option<String> = None;
 
     // Track table state
     let mut table_start = 0usize;
@@ -68,6 +69,9 @@ pub fn parse_document(content: &str) -> ParsedDocument {
         if !in_fence {
             // Check for fence opening
             if let Some((fc, fl, fi)) = detect_fence_open(trimmed) {
+                let preceding: Vec<&str> = para_lines.iter().rev().map(|s| s.as_str()).collect();
+                fence_preceding_label = detect_preceding_label(&preceding);
+
                 // Flush pending paragraph and table
                 let h_idx = headings.len().saturating_sub(1);
                 flush_para(
@@ -206,13 +210,10 @@ pub fn parse_document(content: &str) -> ParsedDocument {
         if detect_fence_close(trimmed, fence_char, fence_len).is_some() {
             let h_idx = headings.len().saturating_sub(1);
 
-            // Detect label from preceding prose lines (Rule 2)
-            let preceding: Vec<&str> = para_lines.iter().rev().map(|s| s.as_str()).collect();
-            let rule2_label = detect_preceding_label(&preceding);
-
             // Detect label from inline content (Rule 1)
             let content_refs: Vec<&str> = fence_content.iter().map(|s| s.as_str()).collect();
-            let label = detect_inline_label(&fence_info, &content_refs).or(rule2_label);
+            let preceding_label = fence_preceding_label.take();
+            let label = detect_inline_label(&fence_info, &content_refs).or(preceding_label);
 
             elements.push(ParsedElement::CodeBlock(CodeBlock {
                 fence_info: std::mem::take(&mut fence_info),
