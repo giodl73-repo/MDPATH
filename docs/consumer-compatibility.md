@@ -9,7 +9,7 @@ retains its own admission and product policy.
 |---|---|---|
 | AMAZE | Document parsing and heading normalization | Room Markdown lint rules and operator findings |
 | MDCROP | Canonical nested-section resolution | Corpus selection, graph traversal, and view policy |
-| MDLOOM | Typed fenced-block resolution | Compilation, validation, rendering, and publication |
+| PROOF | Typed fenced-block resolution | Compilation, validation, rendering, and publication |
 
 Run:
 

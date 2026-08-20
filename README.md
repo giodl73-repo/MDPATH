@@ -13,7 +13,7 @@ repository-local review panels.
 MDPATH is the addressing layer in the MD family:
 
 ```text
-Markdown → MDPATH → MDCROP → MDLOOM → MDPORT
+Markdown → MDPATH → MDCROP → PROOF → MDPORT
              address    select     build      transfer
 ```
 
@@ -21,7 +21,7 @@ Markdown → MDPATH → MDCROP → MDLOOM → MDPORT
 |------|----------------|
 | **MDPATH** | Stable `md://` addresses for Markdown elements. |
 | [MDCROP](https://github.com/giodl73-repo/MDCROP) | Corpus indexing, graph selection, and bounded context. |
-| [MDLOOM](https://github.com/giodl73-repo/MDLOOM) | Validation, compilation, rendering, and publication. |
+| [PROOF](https://github.com/giodl73-repo/PROOF) | Validation, compilation, rendering, and publication. |
 | [MDPORT](https://github.com/giodl73-repo/MDPORT) | Compact portable `mdport.v1` records. |
 
 Line numbers break. File paths break. `md://` URIs don't.
@@ -35,9 +35,9 @@ md://languages/10-GO.md#concurrency-model:figure.flowchart:goroutine-scheduler
     └── file ──────────┘ └── section ────┘ └── type.kind ─┘ └── named label ──┘
 ```
 
-It powers [MDLOOM](https://github.com/giodl73-repo/MDLOOM) — a full Markdown compilation toolchain
+It powers [PROOF](https://github.com/giodl73-repo/PROOF) — a full Markdown compilation toolchain
 running across a 2,700-file corpus of technical guides, presentations, and
-dashboards. Every `mdloom:include`, `mdloom:xref`, `mdloom:toc`, and DaVinci pin
+dashboards. Every `proof:include`, `proof:xref`, `proof:toc`, and DaVinci pin
 resolves through mdpath at compile time.
 
 ```rust
@@ -256,7 +256,7 @@ resolution and one structured ambiguity failure. Run it with
 
 The [consumer compatibility](docs/consumer-compatibility.md) surface retains
 representative canaries for AMAZE document parsing, MDCROP section resolution,
-and MDLOOM typed-fence resolution. Run it with
+and PROOF typed-fence resolution. Run it with
 `cargo test --test consumer_contracts`.
 
 ```bash

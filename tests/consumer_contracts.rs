@@ -67,16 +67,16 @@ fn retained_consumers_match_their_public_surfaces() {
         normalize(include_str!("../fixtures/consumers/mdcrop.json"))
     );
 
-    let mdloom_uri =
+    let proof_uri =
         mdpath::parse("md://fixtures/consumers/corpus.md#consumer-contract:math:energy-balance")
-            .expect("MDLOOM math URI should parse");
-    let mdloom = resolve_with_classifier(&mdloom_uri, root(), &DefaultClassifier)
-        .expect("MDLOOM math URI should resolve");
-    let mdloom_report = format!(
+            .expect("PROOF math URI should parse");
+    let proof = resolve_with_classifier(&proof_uri, root(), &DefaultClassifier)
+        .expect("PROOF math URI should resolve");
+    let proof_report = format!(
         concat!(
             "{{\n",
             "  \"schema\": \"mdpath.consumer-proof.v1\",\n",
-            "  \"consumer\": \"MDLOOM\",\n",
+            "  \"consumer\": \"PROOF\",\n",
             "  \"status\": \"accepted\",\n",
             "  \"surface\": \"typed-fence-resolution\",\n",
             "  \"uri\": \"{}\",\n",
@@ -86,19 +86,19 @@ fn retained_consumers_match_their_public_surfaces() {
             "  \"line_end\": {}\n",
             "}}"
         ),
-        mdloom.uri,
-        mdloom
+        proof.uri,
+        proof
             .label
             .as_deref()
             .expect("math block should have a label"),
-        format!("{:?}", mdloom.element_type).to_ascii_lowercase(),
-        mdloom.line_start,
-        mdloom.line_end
+        format!("{:?}", proof.element_type).to_ascii_lowercase(),
+        proof.line_start,
+        proof.line_end
     );
-    assert_eq!(mdloom.element_type, ElementType::Math);
+    assert_eq!(proof.element_type, ElementType::Math);
     assert_eq!(
-        normalize(&mdloom_report),
-        normalize(include_str!("../fixtures/consumers/mdloom.json"))
+        normalize(&proof_report),
+        normalize(include_str!("../fixtures/consumers/proof.json"))
     );
 }
 
