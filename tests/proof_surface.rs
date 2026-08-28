@@ -1,8 +1,7 @@
 use mdpath::{resolve, MdPathError};
 use std::path::Path;
 
-const ACCEPTED_URI: &str =
-    "md://fixtures/proof/corpus.md#proof-surface:figure:accepted-diagram";
+const ACCEPTED_URI: &str = "md://fixtures/proof/corpus.md#proof-surface:figure:accepted-diagram";
 const REJECTED_URI: &str = "md://fixtures/proof/corpus.md#proof-surface:figure:duplicate";
 
 fn normalize(value: &str) -> String {
@@ -29,7 +28,10 @@ fn proof_fixtures_record_accepted_resolution_and_structured_failure() {
         ),
         accepted.uri,
         format!("{:?}", accepted.element_type).to_ascii_lowercase(),
-        accepted.label.as_deref().expect("accepted figure has a label"),
+        accepted
+            .label
+            .as_deref()
+            .expect("accepted figure has a label"),
         accepted.line_start,
         accepted.line_end
     );
