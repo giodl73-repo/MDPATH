@@ -197,7 +197,7 @@ pub fn apply_figure_subselectors(
             "row" => {
                 // Raw line access by index
                 if let SelectorValue::Index(n) = &sub.value {
-                    return block.content.get(*n).map(|s| s.clone()).ok_or_else(|| {
+                    return block.content.get(*n).cloned().ok_or_else(|| {
                         MdPathError::SubKeyNotFound(format!(
                             "line {} out of range (figure has {} lines)",
                             n,

@@ -213,22 +213,19 @@ impl MdUri {
     }
 }
 
+type ParsedFragment = (
+    Vec<String>,
+    Option<ElementType>,
+    Option<String>,
+    Selector,
+    Vec<SubSelector>,
+    Option<QueryParams>,
+);
+
 /// Parse the fragment portion (everything after `#`).
 ///
 /// Extraction order matters — later steps must not see content already extracted.
-fn parse_fragment(
-    fragment: &str,
-) -> Result<
-    (
-        Vec<String>,         // heading_path
-        Option<ElementType>, // element_type
-        Option<String>,      // kind
-        Selector,            // selector
-        Vec<SubSelector>,    // sub_selectors
-        Option<QueryParams>, // query
-    ),
-    MdPathError,
-> {
+fn parse_fragment(fragment: &str) -> Result<ParsedFragment, MdPathError> {
     if fragment.is_empty() {
         return Ok((vec![], None, None, Selector::None, vec![], None));
     }
@@ -252,7 +249,7 @@ fn parse_fragment(
     let heading_path: Vec<String> = heading_raw
         .split('/')
         .filter(|s| !s.is_empty())
-        .map(|s| normalize_heading(s))
+        .map(normalize_heading)
         .collect();
 
     if type_sel_block.is_empty() {
