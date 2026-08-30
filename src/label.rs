@@ -1,19 +1,19 @@
-/// Label detection for figures within code blocks.
-///
-/// Three priority rules (applied in order, first match wins):
-///
-/// **Rule 1 — Inline label:** First non-empty line INSIDE the fence, if:
-///   - The opening fence has NO language info string (` ``` ` not ` ```python `)
-///   - The line contains ONLY text characters (no box-drawing chars, no `|`, `+`, `┌`, etc.)
-///   - The label is not a pure digit string (reserved for numeric selectors)
-///
-/// **Rule 2 — Preceding label:** Last non-empty markdown line BEFORE the fence
-/// (with no blank lines between that line and the fence), if:
-///   - The line is bold (`**text**`) OR
-///   - The line is standalone text of ≤ 60 characters
-///   - The line is not a heading, list item, link, or code
-///
-/// **Rule 3 — No label:** Numeric fallback (`:0`, `:1`, etc.)
+//! Label detection for figures within code blocks.
+//!
+//! Three priority rules (applied in order, first match wins):
+//!
+//! **Rule 1 — Inline label:** First non-empty line INSIDE the fence, if:
+//!   - The opening fence has NO language info string (` ``` ` not ` ```python `)
+//!   - The line contains ONLY text characters (no box-drawing chars, no `|`, `+`, `┌`, etc.)
+//!   - The label is not a pure digit string (reserved for numeric selectors)
+//!
+//! **Rule 2 — Preceding label:** Last non-empty markdown line BEFORE the fence
+//! (with no blank lines between that line and the fence), if:
+//!   - The line is bold (`**text**`) OR
+//!   - The line is standalone text of ≤ 60 characters
+//!   - The line is not a heading, list item, link, or code
+//!
+//! **Rule 3 — No label:** Numeric fallback (`:0`, `:1`, etc.)
 
 /// Returns true if a line contains box-drawing characters that disqualify it
 /// from being an inline label.
@@ -82,46 +82,37 @@ pub fn detect_inline_label(fence_info: &str, lines: &[&str]) -> Option<String> {
 /// `lines_before` is a slice of lines immediately before the fence (reverse order:
 /// index 0 is the line just before the fence, index 1 is two lines before, etc.).
 pub fn detect_preceding_label(lines_before: &[&str]) -> Option<String> {
-    // Walk backwards from the fence; skip blank lines (but stop at first blank
-    // when a non-blank has been found — no "skipping over" blank lines)
-    for (i, line) in lines_before.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            // If we haven't found a non-blank yet, the preceding line is blank
-            // → no preceding label (blank line between text and fence breaks the link)
-            if i == 0 {
-                return None;
-            }
-            break;
-        }
-        // Accept bold FIRST: **text** — must check before list-item rejection
-        // since "**text**" starts with '*' but is not a list item
-        if trimmed.starts_with("**") && trimmed.ends_with("**") && trimmed.len() > 4 {
-            let inner = &trimmed[2..trimmed.len() - 2];
-            if !inner.is_empty() && !is_pure_digit(inner) {
-                return Some(inner.to_string());
-            }
-        }
-
-        // Reject headings, list items, links, code spans (non-bold)
-        if trimmed.starts_with('#') {
-            return None;
-        }
-        if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("1.") {
-            return None;
-        }
-        if trimmed.starts_with('[') || trimmed.starts_with('`') {
-            return None;
-        }
-
-        // Accept standalone text ≤ 60 chars
-        if trimmed.len() <= 60 && !is_pure_digit(trimmed) {
-            return Some(trimmed.to_string());
-        }
-
-        // Line is too long and not bold — no label
+    // Only the line immediately before the fence can be a preceding label.
+    let trimmed = lines_before.first()?.trim();
+    if trimmed.is_empty() {
         return None;
     }
+
+    // Accept bold FIRST: **text** — must check before list-item rejection
+    // since "**text**" starts with '*' but is not a list item
+    if trimmed.starts_with("**") && trimmed.ends_with("**") && trimmed.len() > 4 {
+        let inner = &trimmed[2..trimmed.len() - 2];
+        if !inner.is_empty() && !is_pure_digit(inner) {
+            return Some(inner.to_string());
+        }
+    }
+
+    // Reject headings, list items, links, code spans (non-bold)
+    if trimmed.starts_with('#') {
+        return None;
+    }
+    if trimmed.starts_with("- ") || trimmed.starts_with("* ") || trimmed.starts_with("1.") {
+        return None;
+    }
+    if trimmed.starts_with('[') || trimmed.starts_with('`') {
+        return None;
+    }
+
+    // Accept standalone text <= 60 chars
+    if trimmed.len() <= 60 && !is_pure_digit(trimmed) {
+        return Some(trimmed.to_string());
+    }
+
     None
 }
 
@@ -134,11 +125,9 @@ pub fn normalize_label(label: &str) -> String {
         if c.is_alphanumeric() {
             result.push(c);
             last_space = false;
-        } else if c.is_whitespace() || c == '-' || c == '_' {
-            if !last_space && !result.is_empty() {
-                result.push(' ');
-                last_space = true;
-            }
+        } else if (c.is_whitespace() || c == '-' || c == '_') && !last_space && !result.is_empty() {
+            result.push(' ');
+            last_space = true;
         }
         // Strip other punctuation
     }

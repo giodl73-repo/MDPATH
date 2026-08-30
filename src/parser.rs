@@ -169,7 +169,7 @@ pub fn parse_document(content: &str) -> ParsedDocument {
             if in_table && !is_table_row {
                 let h_idx = headings.len().saturating_sub(1);
                 if table_rows.len() >= 2 {
-                    let rows: Vec<&str> = table_rows.drain(..).collect();
+                    let rows: Vec<&str> = std::mem::take(&mut table_rows);
                     if let Some(parsed) =
                         try_parse_table(&rows, table_start, line_no.saturating_sub(1), h_idx)
                     {

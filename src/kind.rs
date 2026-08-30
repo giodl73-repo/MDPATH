@@ -1,8 +1,8 @@
-/// Figure kind detection — auto-classify ASCII art diagrams.
-///
-/// Given the content of a code block, determines which `figure.*` kind it is.
-/// This is used when a URI specifies a kind filter (e.g. `figure.flowchart`)
-/// or when `proof spec generate` needs to auto-classify for template selection.
+//! Figure kind detection — auto-classify ASCII art diagrams.
+//!
+//! Given the content of a code block, determines which `figure.*` kind it is.
+//! This is used when a URI specifies a kind filter (e.g. `figure.flowchart`)
+//! or when `proof spec generate` needs to auto-classify for template selection.
 
 /// Detect the kind of a figure from its content lines.
 /// Returns the kind string (e.g. "flowchart", "layer-stack") or None if uncategorized.
