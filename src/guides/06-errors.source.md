@@ -87,9 +87,13 @@ fn resolve_with_fallback(uri_str: &str, root: &Path) -> Result<ResolvedElement, 
     match resolve(&parse(uri_str)?, root) {
         Ok(e) => Ok(e),
         Err(MdPathError::LabelNotFound { .. }) => {
-            // Try numeric index as fallback
+            // Try numeric index only when no stable label is available.
             let fallback = uri_str.replace(":figure:name", ":figure:0");
             resolve(&parse(&fallback)?, root)
+        }
+        Err(MdPathError::NumericUriStale(label)) => {
+            eprintln!("numeric selector is stale; use the named selector '{}'", label);
+            Err(MdPathError::NumericUriStale(label))
         }
         Err(e) => Err(e),
     }

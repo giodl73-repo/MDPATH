@@ -46,7 +46,9 @@ Zero-indexed position within the type collection in the section:
 ```
 
 Numeric selectors are fragile — they break when elements are reordered.
-Use named selectors whenever possible.
+Use named selectors whenever possible. For labelled fenced elements, a numeric
+selector returns `NumericUriStale`; table indexes remain valid for table
+row/column sub-selector addressing.
 
 ---
 

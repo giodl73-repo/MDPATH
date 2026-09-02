@@ -42,6 +42,12 @@ restores that revision and its retained fixtures; it must not percent-encode
 paths, choose an arbitrary ambiguous label, guess a missing section, or move
 consumer policy into MDPATH.
 
+The numeric URI boundary closes `MDPATH-PF-03` for durable pins and generated
+references. Consumers should treat `NumericUriStale` as an actionable repair
+signal: if a labelled fenced element is reached through a numeric selector,
+replace the selector with the reported stable label. Table indexes remain valid
+for row/column sub-selector addressing.
+
 ## Review findings
 
 - **URI contract steward:** accepted; canonical URI and structured-error

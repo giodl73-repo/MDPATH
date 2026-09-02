@@ -131,6 +131,12 @@ pub fn resolve_in_doc_with_classifier(
         Selector::None => typed.first().ok_or(MdPathError::ElementNotFound(0, 0))?,
     };
 
+    if matches!(uri.selector, Selector::Index(_)) && !matches!(target_type, ElementType::Table) {
+        if let Some(label) = get_label(selected) {
+            return Err(MdPathError::NumericUriStale(label));
+        }
+    }
+
     element_to_resolved(selected, uri, file, section_heading, classifier)
 }
 

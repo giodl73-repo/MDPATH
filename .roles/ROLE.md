@@ -17,3 +17,9 @@ resolution behavior, guides, or integration examples.
 1. Use URI Contract Steward for grammar, canonicalization, or selector changes.
 2. Use Resolver Semantics Auditor for parsing, matching, ambiguity, and error behavior.
 3. Use Corpus Integration Reviewer for README, guides, and external-tool examples.
+
+## PITFALL gates
+
+| Pitfall | Gate | Required roles |
+|---|---|---|
+| `MDPATH-PF-03` | Numeric URI boundary. Blocks durable proof pins, publication references, fix-plan targets, compatibility canaries, and generated cross-references from keeping numeric fenced-element selectors after a stable label exists; labelled fenced elements return `NumericUriStale`, while table indexes remain available for row/column addressing. | URI Contract Steward; Resolver Semantics Auditor; Corpus Integration Reviewer |

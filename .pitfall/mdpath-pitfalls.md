@@ -40,7 +40,7 @@ ambiguity error instead of guessing.
 
 ## MDPATH-PF-03: Numeric URI Survives After A Name Exists
 
-**Status:** OPEN
+**Status:** MITIGATED
 
 **Pattern:** A numeric URI such as `:figure:0` continues to resolve after a
 stable label is added, leaving a reorder-sensitive stale reference.
@@ -51,12 +51,17 @@ authoring workflows.
 **Detection difficulty:** The URI still works until another same-type element
 is inserted before it.
 
-**Structural solution:** Preserve this as an open consumer-boundary issue:
-resolver/proof surfaces should warn or refuse numeric pins when a named form is
-available.
+**Structural solution:** Resolver surfaces now refuse numeric selectors for
+labelled fenced elements with `NumericUriStale`, while preserving numeric
+fallback for unlabeled fenced elements and table indexes for row/column
+addressing. Consumers repair durable pins, publication references, fix-plan
+targets, compatibility canaries, and generated cross-references to the named
+selector reported by the error.
 
-**Evidence:** `design/PITFALLS.md` `MP-06` and prior PROOF stale numeric URI
-fixes tracked in the portfolio PITFALL wave.
+**Evidence:** `design/PITFALLS.md` `MP-06`, `docs/numeric-uri-boundary.md`,
+`src/resolver.rs`, `tests/numeric_uri_boundary.rs`,
+`tests/check-numeric-uri-boundary.ps1`, and prior PROOF stale numeric URI fixes
+tracked in the portfolio PITFALL wave.
 
 ## MDPATH-PF-04: Consumer Policy Leaks Into Core Protocol
 
@@ -95,4 +100,3 @@ changes to move together for contract changes.
 
 **Evidence:** `docs/proof-surface.md`, `fixtures/proof/`, and
 `.roles/ROLE.md`.
-

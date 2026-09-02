@@ -78,3 +78,21 @@ ambiguous targets, and malformed URIs collapse into generic failure.
 **Evidence:** `docs/guides/06-errors.md`, `src/error.rs`, and
 `docs/consumer-compatibility.md`.
 
+## MDPATH-I-06: Numeric Fallback Refuses Named Elements
+
+**Status:** VERIFIED
+
+**Invariant:** A numeric selector for a labelled fenced element fails with
+`NumericUriStale` instead of resolving a reorder-sensitive stale URI; numeric
+fallback remains available for unlabeled fenced elements and table row/column
+addressing.
+
+**Why it matters:** Durable proof pins and generated cross-references should
+move to stable names as soon as a label exists.
+
+**Test:** `cargo test --test numeric_uri_boundary` and
+`pwsh -NoProfile -File tests/check-numeric-uri-boundary.ps1`.
+
+**Evidence:** `MDPATH-PF-03`, `docs/numeric-uri-boundary.md`,
+`src/resolver.rs`, `tests/numeric_uri_boundary.rs`, `.roles/ROLE.md`, and
+`docs/consumer-compatibility.md`.
