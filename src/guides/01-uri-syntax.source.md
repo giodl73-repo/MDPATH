@@ -138,6 +138,8 @@ The selector picks one element from the filtered type collection. Always prefer
 a named selector — it's stable across edits because it identifies the element
 by what it IS, not where it sits in the document. Numeric indexes are the last
 resort: they break whenever any element is inserted or removed above the target.
+For labelled fenced elements, numeric fallback fails with `NumericUriStale`
+instead of silently preserving a stale proof pin.
 
 **Named (preferred — stable):**
 ```
@@ -215,7 +217,9 @@ root: URI examples by specificity
 The most important rule in the URI scheme: use a name whenever one exists.
 Named URIs are stable across document edits because they anchor to the content's
 identity, not its position. Numeric URIs are a fallback for elements that have
-no discoverable name.
+no discoverable name. When a labelled fenced element is addressed by number,
+resolution returns `NumericUriStale`; update the URI to the named selector
+reported by the error.
 
 When proof generates a URI (in error output, fix plans, or `proof pin`), it
 always resolves to the named form first. Only when no name exists does it fall

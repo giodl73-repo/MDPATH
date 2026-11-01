@@ -2,6 +2,22 @@
 
 **A stable addressing scheme for every figure, table, heading, and diagram in your markdown corpus.**
 
+## Try Rust resolution in your browser
+
+The [MDPATH address workbench](https://giodl73-repo.github.io/MDPATH/) lets you
+load your own Markdown, bind a logical path and resolve an `md://` address.
+Inspect resolved text, line ranges and typed failures; download the original,
+current request, native report or resolved content. Seven synthetic examples
+cover named/prefix matching, table cells/projection, section headings, ambiguity
+and stale numeric selectors. Inputs stay in the tab.
+
+The unpublished standalone companion uses the existing Rust parser and
+in-memory resolver with the default classifier. It does not open URI paths or
+fetch a corpus. Named addresses remain subject to document changes; the page
+reports actual core behavior, including heading-only section resolution.
+Source, WASM, build provenance and notices are available independently of the
+engine. See [BUILD.md](BUILD.md) for reproduction and explicit admission limits.
+
 **Series:** [Standards & Protocols](https://github.com/giodl73-repo/giodl73-repo/blob/main/series/standards-protocols.md).
 
 **Review roles:** This repo uses
@@ -92,6 +108,10 @@ md://doc.md:table:metrics?select=name,value         projected columns
 **Names over numbers.** Numeric indexes break when elements are reordered.
 Named selectors use a three-phase cascade — exact → prefix → substring — so
 `:figure:goroutine` matches `goroutine-scheduler` without specifying the full label.
+The [`numeric URI boundary`](docs/numeric-uri-boundary.md) closes `MDPATH-PF-03`:
+a numeric selector against a labelled fenced element now returns
+`NumericUriStale`, so durable references move to the named form once a stable
+label exists.
 
 ---
 
