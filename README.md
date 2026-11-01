@@ -92,6 +92,10 @@ md://doc.md:table:metrics?select=name,value         projected columns
 **Names over numbers.** Numeric indexes break when elements are reordered.
 Named selectors use a three-phase cascade — exact → prefix → substring — so
 `:figure:goroutine` matches `goroutine-scheduler` without specifying the full label.
+The [`numeric URI boundary`](docs/numeric-uri-boundary.md) closes `MDPATH-PF-03`:
+a numeric selector against a labelled fenced element now returns
+`NumericUriStale`, so durable references move to the named form once a stable
+label exists.
 
 ---
 

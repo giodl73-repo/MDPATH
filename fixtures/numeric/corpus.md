@@ -1,0 +1,10 @@
+# Numeric Fallback
+
+```
+named-diagram
++------+
+```
+
+```
++------+
+```
